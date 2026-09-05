@@ -51,13 +51,63 @@
 
 JSON。CIとフィッティングループの両方が機械可読に扱えること。人間向けの整形出力は別途スクリプトで行う。
 
+構造は `docs/04-metrics.schema.json`（JSON Schema）で機械可読に定義する。バージョニングは `docs/03-preset-format.md` と同じセマンティックバージョニングに従い、現在のバージョンは `calc_conditions.schema_version` に記録する。
+
+各指標の値は「値」または「欠測（値と理由）」のどちらかを取る（欠測は valid な状態として許容される）。
+
+```json
+{ "value": 0.0, "missing_reason": null }
+```
+
+```json
+{ "value": null, "missing_reason": "スペクトログラムの該当区間が無音のため算出不能" }
+```
+
 ```json
 {
   "target": "sample_042.wav",
-  "overall": { "msstft": 0.0, "mfcc": 0.0, "loudness_diff_db": 0.0 },
-  "segments": { "attack": {...}, "transition": {...}, "sustain": {...}, "release": {...} },
-  "bands": [ { "lo_hz": 0, "hi_hz": 200, "error": 0.0 } ],
-  "trajectories": { "transient_env_corr": 0.0, "f0_dist": 0.0, "formant_dist": 0.0 }
+  "overall": {
+    "msstft": { "value": 0.0, "missing_reason": null },
+    "mfcc": { "value": 0.0, "missing_reason": null },
+    "loudness_diff_db": { "value": 0.0, "missing_reason": null }
+  },
+  "segments": {
+    "attack": {
+      "msstft": { "value": 0.0, "missing_reason": null },
+      "mfcc": { "value": 0.0, "missing_reason": null },
+      "loudness_diff_db": { "value": 0.0, "missing_reason": null }
+    },
+    "transition": {
+      "msstft": { "value": 0.0, "missing_reason": null },
+      "mfcc": { "value": 0.0, "missing_reason": null },
+      "loudness_diff_db": { "value": 0.0, "missing_reason": null }
+    },
+    "sustain": {
+      "msstft": { "value": 0.0, "missing_reason": null },
+      "mfcc": { "value": 0.0, "missing_reason": null },
+      "loudness_diff_db": { "value": 0.0, "missing_reason": null }
+    },
+    "release": {
+      "msstft": { "value": 0.0, "missing_reason": null },
+      "mfcc": { "value": 0.0, "missing_reason": null },
+      "loudness_diff_db": { "value": 0.0, "missing_reason": null }
+    }
+  },
+  "bands": [
+    { "lo_hz": 0, "hi_hz": 200, "error": { "value": 0.0, "missing_reason": null } }
+  ],
+  "trajectories": {
+    "transient_env_corr": { "value": 0.0, "missing_reason": null },
+    "f0_dist": { "value": 0.0, "missing_reason": null },
+    "formant_dist": { "value": 0.0, "missing_reason": null }
+  },
+  "calc_conditions": {
+    "schema_version": "1.0.0",
+    "fft_sizes": [512, 2048, 8192],
+    "band_edges_hz": [0, 200, 800, 2000, 5000, 20000],
+    "segment_boundaries_s": { "attack_end_s": 0.02, "transition_end_s": 0.08, "sustain_end_s": 0.45 },
+    "estimation_algorithms": [ { "name": "yin", "version": "n/a" } ]
+  }
 }
 ```
 
