@@ -1,15 +1,15 @@
 {
   "target": "violin_pizzicato",
-  "status": "missing_audio",
-  "status_detail": "音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/violin_pizzicato.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）",
-  "voiced_frame_ratio": null,
+  "status": "ok",
+  "status_detail": null,
+  "voiced_frame_ratio": 0.5114045618247299,
   "harmonic_amplitude_motion": {
-    "value": null,
-    "missing_reason": "音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/violin_pizzicato.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+    "value": 1.0357522469592269,
+    "missing_reason": null
   },
   "non_integer_partial_ratio": {
-    "value": null,
-    "missing_reason": "音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/violin_pizzicato.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+    "value": 0.34004583380255043,
+    "missing_reason": null
   },
   "calc_conditions": {
     "schema_version": "1.0.0",

@@ -7,73 +7,73 @@
       "id": "sine_440hz",
       "status": "ok",
       "output_file": "sine_440hz.json",
-      "elapsed_s": 8.931046350000088
+      "elapsed_s": 7.492006029000095
     },
     {
       "id": "white_noise",
       "status": "no_pitch",
       "output_file": "white_noise.json",
-      "elapsed_s": 8.606541490999916
+      "elapsed_s": 6.722775809000041
     },
     {
       "id": "violin_pizzicato",
-      "status": "missing_audio",
+      "status": "ok",
       "output_file": "violin_pizzicato.json",
-      "elapsed_s": 0.00010685899997042725
+      "elapsed_s": 2.980617718000076
     },
     {
       "id": "violin_vibrato",
-      "status": "missing_audio",
+      "status": "ok",
       "output_file": "violin_vibrato.json",
-      "elapsed_s": 3.476699976090458e-05
+      "elapsed_s": 3.7784917779999887
     },
     {
       "id": "violin_tuning",
-      "status": "missing_audio",
+      "status": "ok",
       "output_file": "violin_tuning.json",
-      "elapsed_s": 2.3537000288342824e-05
+      "elapsed_s": 30.58933809899986
     },
     {
       "id": "crash_cymbal",
-      "status": "missing_audio",
+      "status": "no_pitch",
       "output_file": "crash_cymbal.json",
-      "elapsed_s": 2.6032999812741764e-05
+      "elapsed_s": 3.0547942499999863
     },
     {
       "id": "snare_drum_rim",
-      "status": "missing_audio",
+      "status": "no_pitch",
       "output_file": "snare_drum_rim.json",
-      "elapsed_s": 3.912600004696287e-05
+      "elapsed_s": 3.070955224000045
     },
     {
       "id": "rain_light",
-      "status": "missing_audio",
+      "status": "ok",
       "output_file": "rain_light.json",
-      "elapsed_s": 3.501899982438772e-05
+      "elapsed_s": 40.221696805999954
     },
     {
       "id": "tibetan_singing_bowl",
-      "status": "missing_audio",
+      "status": "ok",
       "output_file": "tibetan_singing_bowl.json",
-      "elapsed_s": 6.605900034628576e-05
+      "elapsed_s": 14.739299308
     },
     {
       "id": "kalimba_sample",
-      "status": "missing_audio",
+      "status": "ok",
       "output_file": "kalimba_sample.json",
-      "elapsed_s": 2.8404999738995684e-05
+      "elapsed_s": 32.39718127600008
     },
     {
       "id": "spoken_hello",
       "status": "ok",
       "output_file": "spoken_hello.json",
-      "elapsed_s": 0.7718629480000345
+      "elapsed_s": 0.6471345610000299
     }
   ],
   "summary": {
-    "ok": 2,
-    "no_pitch": 1,
-    "missing_audio": 8,
+    "ok": 8,
+    "no_pitch": 3,
+    "missing_audio": 0,
     "error": 0
   }
 }

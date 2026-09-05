@@ -8,25 +8,35 @@
 `AGENTS.md` 第5節「変更ファイル数」の集計対象からは除外する（Q-012の暫定の扱いと同じ扱い、
 `docs/06-open-questions.md` 参照）。
 
-## 既知の限界：この実行環境では全音源を観測できていない
+## 実行結果：コーパス全11音源を観測済み
 
-この観測は、`corpus/manifest.json` の非同梱音源（`bundled: false`、8/11音源：
-`violin_pizzicato` / `violin_vibrato` / `violin_tuning` / `crash_cymbal` / `snare_drum_rim` /
-`rain_light` / `tibetan_singing_bowl` / `kalimba_sample`）を Wikimedia Commons から取得できない
-サンドボックス環境（ネットワークポリシーにより `upload.wikimedia.org` への到達がブロックされる）
-で実行した。結果、`status="missing_audio"` になっている。
+`corpus/manifest.json` の全11音源（同梱3音源 + Wikimedia Commons由来の非同梱8音源）に対し観測を実行した。
+非同梱音源は `corpus/fetch_and_verify.py` で取得・SHA256検証済み（`missing_audio` は0件）。
 
-実測できたのは同梱済みの3音源（`sine_440hz` / `white_noise` / `spoken_hello`）のみである：
+| id | status | voiced_frame_ratio | harmonic_amplitude_motion | non_integer_partial_ratio |
+| --- | --- | --- | --- | --- |
+| sine_440hz | ok | 1.000 | (missing: 倍音自体が存在しない) | 0.0006 |
+| white_noise | no_pitch | 0.088 | — | — |
+| violin_pizzicato | ok | 0.511 | 1.036 | 0.340 |
+| violin_vibrato | ok | 0.517 | 1.311 | 0.125 |
+| violin_tuning | ok | 0.973 | 1.131 | 0.255 |
+| crash_cymbal | no_pitch | 0.045 | — | — |
+| snare_drum_rim | no_pitch | 0.000 | — | — |
+| rain_light | ok | 0.204 | 0.640 | 0.065 |
+| tibetan_singing_bowl | ok | 0.992 | 2.264 | 0.147 |
+| kalimba_sample | ok | 0.624 | 4.248 | 0.385 |
+| spoken_hello | ok | 0.491 | 0.586 | 0.055 |
 
-- `sine_440hz`：単一倍音のみの合成音。`non_integer_partial_ratio` はほぼ0（0.0006）、
-  `harmonic_amplitude_motion` は倍音自体が存在しないため欠測（正しい振る舞い）
-- `white_noise`：有声フレーム比率が閾値未満のため `status="no_pitch"`（音高を持たない
-  音源として明示的に記録。完了条件の該当項目を満たす実例）
-- `spoken_hello`：発話。`harmonic_amplitude_motion=0.586`、`non_integer_partial_ratio=0.055`
+要約：`ok`=8、`no_pitch`=3、`missing_audio`=0。
 
-**Q-001（Harmonic層の合成方式）が求める「コーパスの倍音構造の多様性」の判断には、
-打楽器・弦楽器を含む残り8音源の実測が必要である。** P1-03（Q-001の決定）に進む前に、
-Wikimedia Commonsへのネットワークアクセスがある環境（ローカル開発機、または将来
-CIに組み込んだ場合）で `corpus/fetch_and_verify.py` を実行してから本コマンドを再実行し、
-`corpus/observations/harmonic_structure/` を更新すること。ツール自体は
-`tests/test_harmonic_observation.py` でTDDに従い検証済みであり、追加の実装は不要。
+観測できた範囲でのメモ（**方式の決定はP1-03で行う。本PRは観測のみ**）：
+
+- `harmonic_amplitude_motion` は音源ごとに0.59（`spoken_hello`）〜4.25（`kalimba_sample`）まで
+  約7倍の開きがあり、`non_integer_partial_ratio` も0.06〜0.38まで幅がある。コーパスは
+  「倍音構造の多様性」の観点で単調ではない
+- `rain_light`（軽い雨音）は打楽器・ノイズ系（`white_noise` / `crash_cymbal` / `snare_drum_rim`）と異なり
+  `voiced_frame_ratio`が閾値0.15を上回り`status="ok"`になった。無声音源が必ず`no_pitch`になるとは
+  限らない実例として記録する
+- `sine_440hz` は単一倍音のみのため`harmonic_amplitude_motion`が欠測（設計通りの挙動）
+
+生の観測値はP1-03のQ-001判断で参照すること。
