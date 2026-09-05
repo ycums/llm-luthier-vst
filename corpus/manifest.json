@@ -1,0 +1,470 @@
+{
+  "schema_version": "1.0.0",
+  "note_en": "Golden corpus for issue #10 / docs/04-metrics.md. Files are managed exactly as obtained (no resampling/normalization). This set must not change without an ADR (see docs/adr/0003-golden-corpus.md).",
+  "diversity_methodology": "attack: attack_rise_ms <= 100 -> 'sharp', otherwise 'soft'. pitch: pitch_strength >= 0.5 -> 'yes', otherwise 'no'. harmonic_motion: centroid_motion_ratio > 0.4 -> 'dynamic', otherwise 'static'. These thresholds are a corpus-curation convention for this manifest only; they are NOT the metrics harness's own segment boundaries or thresholds (those remain open, see docs/06-open-questions.md Q-002/Q-004).",
+  "entries": [
+    {
+      "id": "sine_440hz",
+      "title": "Sine wave, 440 Hz (A4), 10 s",
+      "description_ja": "440Hz純音（合成テスト信号）。倍音を一切持たない基準点として採用。",
+      "timbre_tags": [
+        "synthetic",
+        "test-tone",
+        "sine",
+        "single-partial"
+      ],
+      "format": "ogg",
+      "sample_rate": 44100,
+      "duration_s": 10.0,
+      "size_bytes": 19761,
+      "sha256": "8cd7faad6095a89c8f7297e51b337a85d6ff032eef78da34f6ed7b8117e64bc3",
+      "license": {
+        "name": "CC0 1.0",
+        "basis": "own-work self-dedication ({{self|cc-zero}} on the file's Commons page)",
+        "text_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode"
+      },
+      "author": "Ubershmekel (Commons username; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:440_Sine_wave.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/9/91/440_Sine_wave.ogg",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": true,
+      "bundled_path": "corpus/audio/sine_440hz.ogg",
+      "retrieval": null,
+      "diversity": {
+        "pitch": "yes",
+        "attack": "sharp",
+        "harmonic_motion": "static",
+        "measurements": {
+          "attack_rise_ms": 2.0,
+          "pitch_strength": 0.991,
+          "centroid_motion_ratio": 0.001,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": null
+    },
+    {
+      "id": "white_noise",
+      "title": "White noise, 10 s, uniform distribution, -18 dBFS avg, mono",
+      "description_ja": "一様分布の白色雑音（GNU Octaveのrand()で生成）。無声・広帯域の基準点として採用。",
+      "timbre_tags": [
+        "synthetic",
+        "noise",
+        "broadband",
+        "stationary"
+      ],
+      "format": "ogg",
+      "sample_rate": 44100,
+      "duration_s": 10.0,
+      "size_bytes": 201371,
+      "sha256": "dde19c997f1f74536f186a8a9f725947363a6af0c36f81089879ee7191460540",
+      "license": {
+        "name": "Public Domain (PD-ineligible)",
+        "basis": "Author's claim on the file's Commons page via the {{PD-ineligible}} template: the file is algorithmically generated uniform random data (GNU Octave rand()), which the author asserts lacks the originality required for copyright protection under Commons' PD-ineligible criteria. This is a copyright-status claim, not a Creative Commons license, so there is no separate CC legal-code text; the file's own Commons page is the primary record of the claim and its rationale.",
+        "text_url": null
+      },
+      "author": "Omegatron (Commons username; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:White_noise.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/a/aa/White_noise.ogg",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": true,
+      "bundled_path": "corpus/audio/white_noise.ogg",
+      "retrieval": null,
+      "diversity": {
+        "pitch": "no",
+        "attack": "sharp",
+        "harmonic_motion": "static",
+        "measurements": {
+          "attack_rise_ms": 2.0,
+          "pitch_strength": 0.075,
+          "centroid_motion_ratio": 0.077,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": null
+    },
+    {
+      "id": "violin_pizzicato",
+      "title": "Violin, pizzicato (plucked) demonstration",
+      "description_ja": "ヴァイオリンのピチカート（弦を指で弾く奏法）。撥弦のシャープなアタックと急速な倍音減衰の代表。",
+      "timbre_tags": [
+        "acoustic",
+        "string",
+        "bowed-instrument-plucked",
+        "plucked"
+      ],
+      "format": "ogg",
+      "sample_rate": 44100,
+      "duration_s": 4.833,
+      "size_bytes": 44723,
+      "sha256": "59c559c94f8b3b90bf7e2fb9f1c34ce54d967207c9a46764b7fa60d426efb569",
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "basis": "own-work claim on the file's Commons page (uploader: Clngre~commonswiki)",
+        "text_url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode"
+      },
+      "author": "Clngre~commonswiki (Commons username; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Violin_pizzicato.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/c/cd/Violin_pizzicato.ogg",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": false,
+      "bundled_path": null,
+      "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "diversity": {
+        "pitch": "yes",
+        "attack": "sharp",
+        "harmonic_motion": "dynamic",
+        "measurements": {
+          "attack_rise_ms": 4.0,
+          "pitch_strength": 0.948,
+          "centroid_motion_ratio": 1.243,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": null
+    },
+    {
+      "id": "violin_vibrato",
+      "title": "Violin, vibrato demonstration",
+      "description_ja": "ヴァイオリンのヴィブラート奏法。ピッチ揺動により定常部の倍音構成が連続的に動く例。",
+      "timbre_tags": [
+        "acoustic",
+        "string",
+        "bowed",
+        "vibrato"
+      ],
+      "format": "ogg",
+      "sample_rate": 44100,
+      "duration_s": 5.894,
+      "size_bytes": 55815,
+      "sha256": "3f40187b06177e09a4cb1d0d0374575424517b33fb500af58a6cd8b19e7bd0a3",
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "basis": "own-work claim on the file's Commons page (uploader: Clngre~commonswiki)",
+        "text_url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode"
+      },
+      "author": "Clngre~commonswiki (Commons username; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Violin_vibrato.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/e/ec/Violin_vibrato.ogg",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": false,
+      "bundled_path": null,
+      "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "diversity": {
+        "pitch": "yes",
+        "attack": "soft",
+        "harmonic_motion": "dynamic",
+        "measurements": {
+          "attack_rise_ms": 384.0,
+          "pitch_strength": 0.979,
+          "centroid_motion_ratio": 2.007,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": null
+    },
+    {
+      "id": "violin_tuning",
+      "title": "Violin, tuning demonstration (open strings)",
+      "description_ja": "ヴァイオリンの調弦デモ。ボウイングの微調整を含む46秒の録音で、単一ノートの理想的な定常部ではない。",
+      "timbre_tags": [
+        "acoustic",
+        "string",
+        "bowed",
+        "sustained"
+      ],
+      "format": "ogg",
+      "sample_rate": 44100,
+      "duration_s": 46.228,
+      "size_bytes": 650349,
+      "sha256": "5276f41660e39d154021dab46d3f4edb81160618327d00e4a7909bb3eff7c370",
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "basis": "own-work claim on the file's Commons page (Author field: \"Myself\", Credit: \"Recording of myself\"; no linked username given)",
+        "text_url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode"
+      },
+      "author": "Uploader of File:Violin_tuning.ogg (Commons page Author field literally reads \"Myself\"; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Violin_tuning.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/d/d2/Violin_tuning.ogg",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": false,
+      "bundled_path": null,
+      "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "diversity": {
+        "pitch": "yes",
+        "attack": "soft",
+        "harmonic_motion": "dynamic",
+        "measurements": {
+          "attack_rise_ms": 350.0,
+          "pitch_strength": 0.863,
+          "centroid_motion_ratio": 0.98,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": "46秒の録音に複数弦の調弦・弾き直しを含む可能性が高い。アタック/倍音変動の測定値はファイル先頭のイベントに対するものであり、単一ノート音源ほどクリーンではない。"
+    },
+    {
+      "id": "crash_cymbal",
+      "title": "Crash cymbal demonstration",
+      "description_ja": "クラッシュシンバル。無声・非調和スペクトルと、時間とともに高域成分が減衰していく倍音動態の代表。",
+      "timbre_tags": [
+        "acoustic",
+        "percussion",
+        "metal",
+        "inharmonic"
+      ],
+      "format": "ogg",
+      "sample_rate": 44100,
+      "duration_s": 4.922,
+      "size_bytes": 52258,
+      "sha256": "b42d4d35e1b515e171293c003491fe34b809da80365378e71bc450780f5b46cd",
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "basis": "own-work claim on the file's Commons page (uploader: Clngre~commonswiki)",
+        "text_url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode"
+      },
+      "author": "Clngre~commonswiki (Commons username; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Crash_cymbal.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/e/ef/Crash_cymbal.ogg",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": false,
+      "bundled_path": null,
+      "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "diversity": {
+        "pitch": "no",
+        "attack": "sharp",
+        "harmonic_motion": "dynamic",
+        "measurements": {
+          "attack_rise_ms": 76.0,
+          "pitch_strength": 0.323,
+          "centroid_motion_ratio": 1.46,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": "客観測定によるアタック立ち上がりは約76msで、シンバル単体の打撃としては比較的緩やか。録音にクレッシェンド気味の導入が含まれている可能性がある（詳細は docs/adr/0003-golden-corpus.md の測定方法の節を参照）。"
+    },
+    {
+      "id": "snare_drum_rim",
+      "title": "Snare drum, rim shot demonstration",
+      "description_ja": "スネアドラムのリムショット。客観測定でpitch_strength=0.874と高く、リム材の共鳴による準調的な成分が観測された。",
+      "timbre_tags": [
+        "acoustic",
+        "percussion",
+        "membrane",
+        "rim-shot"
+      ],
+      "format": "ogg",
+      "sample_rate": 44100,
+      "duration_s": 5.046,
+      "size_bytes": 46438,
+      "sha256": "5d236d8868d12cafc4a8ba8255d52184572663e59d64cd56d4dcbb680fe0a237",
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "basis": "own-work claim on the file's Commons page (uploader: Clngre~commonswiki)",
+        "text_url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode"
+      },
+      "author": "Clngre~commonswiki (Commons username; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Snare_drum_rim.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/5/51/Snare_drum_rim.ogg",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": false,
+      "bundled_path": null,
+      "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "diversity": {
+        "pitch": "yes",
+        "attack": "sharp",
+        "harmonic_motion": "dynamic",
+        "measurements": {
+          "attack_rise_ms": 2.0,
+          "pitch_strength": 0.874,
+          "centroid_motion_ratio": 2.641,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": null
+    },
+    {
+      "id": "rain_light",
+      "title": "Sound of light rainfall",
+      "description_ja": "小雨の環境音。無声・広帯域で、定常的なノイズテクスチャの自然音代表。",
+      "timbre_tags": [
+        "field-recording",
+        "ambience",
+        "noise",
+        "weather"
+      ],
+      "format": "ogg",
+      "sample_rate": 44100,
+      "duration_s": 60.256,
+      "size_bytes": 647064,
+      "sha256": "e0233652d8173650149adcf3d6e5ddc01b73e8a93ce61b8d7809abfe582251a8",
+      "license": {
+        "name": "CC BY-SA 4.0",
+        "basis": "own-work claim on the file's Commons page (uploader: Mijesty)",
+        "text_url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode"
+      },
+      "author": "Mijesty (Commons username; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Sound_of_light_rainfall.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/1/15/Sound_of_light_rainfall.ogg",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": false,
+      "bundled_path": null,
+      "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "diversity": {
+        "pitch": "no",
+        "attack": "soft",
+        "harmonic_motion": "dynamic",
+        "measurements": {
+          "attack_rise_ms": 260.0,
+          "pitch_strength": 0.369,
+          "centroid_motion_ratio": 0.641,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": null
+    },
+    {
+      "id": "tibetan_singing_bowl",
+      "title": "Tibetan singing bowl, single strike (4.5 inch bowl)",
+      "description_ja": "チベタン・シンギングボウルの単発打撃。倒立打楽器でありながら明確なピッチを持ち、打撃直後の定常部は比較的静的。",
+      "timbre_tags": [
+        "acoustic",
+        "percussion",
+        "metal",
+        "idiophone",
+        "resonant"
+      ],
+      "format": "flac",
+      "sample_rate": 44100,
+      "duration_s": 23.767,
+      "size_bytes": 2813697,
+      "sha256": "dda4a0bc98dea47c046db0b1c72fb7924fb75368fdfa6757edbebf7bd8de245b",
+      "license": {
+        "name": "CC BY-SA 4.0",
+        "basis": "own-work claim on the file's Commons page (uploader: דג בלי מלח)",
+        "text_url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode"
+      },
+      "author": "דג בלי מלח (Commons username; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Tibetan_Singing_Bowl_hit_4.5inch.flac",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/8/87/Tibetan_Singing_Bowl_hit_4.5inch.flac",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": false,
+      "bundled_path": null,
+      "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "diversity": {
+        "pitch": "yes",
+        "attack": "sharp",
+        "harmonic_motion": "static",
+        "measurements": {
+          "attack_rise_ms": 2.0,
+          "pitch_strength": 0.841,
+          "centroid_motion_ratio": 0.399,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": null
+    },
+    {
+      "id": "kalimba_sample",
+      "title": "Kalimba sample",
+      "description_ja": "カリンバ（親指ピアノ）のサンプル録音。金属タインの撥弦による鋭いアタックと調的な減衰の代表。",
+      "timbre_tags": [
+        "acoustic",
+        "idiophone",
+        "plucked",
+        "metal-tine"
+      ],
+      "format": "ogg",
+      "sample_rate": 44100,
+      "duration_s": 51.242,
+      "size_bytes": 467548,
+      "sha256": "c5a362e9bb4abef5e74325f3dc785220272709071a31b8b1f56af6a0469ec1ff",
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "basis": "own-work claim on the file's Commons page (uploader: Obmuc)",
+        "text_url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode"
+      },
+      "author": "Obmuc (Commons username; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Kalimba_Sample.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/e/e7/Kalimba_Sample.ogg",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": false,
+      "bundled_path": null,
+      "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "diversity": {
+        "pitch": "yes",
+        "attack": "sharp",
+        "harmonic_motion": "dynamic",
+        "measurements": {
+          "attack_rise_ms": 4.0,
+          "pitch_strength": 0.97,
+          "centroid_motion_ratio": 2.404,
+          "centroid_motion_skip_s": 0.5,
+          "centroid_motion_window_s": 2.0
+        }
+      },
+      "known_limitations": "51秒の録音で、複数の音（タイン）を順に鳴らすデモである可能性が高い。測定値はファイル先頭のイベントに対するものである。"
+    },
+    {
+      "id": "spoken_hello",
+      "title": "Spoken word: \"hello\" (Lingua Libre)",
+      "description_ja": "Lingua Libreプロジェクトによる単語「hello」の発話録音。フォルマント軌跡が時間的に大きく動く例として、人声（母音・子音の連続）を採用。",
+      "timbre_tags": [
+        "human-voice",
+        "speech",
+        "word",
+        "formant-rich"
+      ],
+      "format": "wav",
+      "sample_rate": 48000,
+      "duration_s": 0.867,
+      "size_bytes": 83244,
+      "sha256": "a7e3a045489fc2301073d0b0e09ac3f47803da807e92793b23d88ba99632d95d",
+      "license": {
+        "name": "CC0 1.0",
+        "basis": "Lingua Libre record, {{cc-zero}} on the file's Commons page",
+        "text_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode"
+      },
+      "author": "Grendelkhan (speaker, Lingua Libre contributor; own work)",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Grendelkhan-hello.wav",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/e/e0/LL-Q1860_%28eng%29-Grendelkhan-hello.wav",
+      "redistributable": true,
+      "bundleable_in_repo": true,
+      "bundled": true,
+      "bundled_path": "corpus/audio/spoken_hello.wav",
+      "retrieval": null,
+      "diversity": {
+        "pitch": "yes",
+        "attack": "soft",
+        "harmonic_motion": "dynamic",
+        "measurements": {
+          "attack_rise_ms": 120.0,
+          "pitch_strength": 0.783,
+          "centroid_motion_ratio": 2.074,
+          "centroid_motion_skip_s": 0.03,
+          "centroid_motion_window_s": 0.837
+        }
+      },
+      "known_limitations": null
+    }
+  ]
+}
