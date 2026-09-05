@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from scipy.signal import filtfilt, butter
+from scipy.signal import butter, filtfilt
 
 from harness.audio_io import read_wav
 from harness.fixture_gen import (
@@ -27,7 +27,6 @@ from harness.fixture_gen import (
     GLIDE_INTERVAL_S,
     LOWPASS_CUTOFF_HZ,
     NOISE_SNR_DB,
-    ONSET_SHIFT_S,
     SAMPLE_RATE,
     generate_all,
 )
@@ -176,7 +175,7 @@ def test_attack_shift_pair_has_known_onset_delay(tmp_path: Path) -> None:
     target = read_wav(tmp_path / p["target"]).data[:, 0]
     candidate = read_wav(tmp_path / p["candidate"]).data[:, 0]
 
-    delay_samples = int(round(p["known"]["onset_shift_s"] * SAMPLE_RATE))
+    delay_samples = round(p["known"]["onset_shift_s"] * SAMPLE_RATE)
 
     # 初めて信号が閾値を超えるサンプル位置の差が delay に一致する（無音区間は正確にゼロ）
     threshold = 1e-3
@@ -242,7 +241,7 @@ def test_same_seed_is_bit_exact_across_separate_processes(tmp_path: Path) -> Non
     out2 = tmp_path / "run2"
 
     for out in (out1, out2):
-        result = subprocess.run(
+        subprocess.run(
             [
                 sys.executable,
                 "-m",

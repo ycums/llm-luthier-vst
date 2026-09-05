@@ -59,7 +59,7 @@ def _read_mono(path: Path) -> tuple[np.ndarray, int]:
 
 def test_fixture_generates_known_resonance_pair(fixtures) -> None:
     """`g_formant_shift` ペアが既知のフォルマント（周波数・帯域幅・ゲイン）を持つ。"""
-    out_dir, meta = fixtures
+    _out_dir, meta = fixtures
     p = _pair_meta(meta, "g_formant_shift")
 
     known = p["known"]

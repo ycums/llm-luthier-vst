@@ -1,7 +1,7 @@
 # ゴールデン音源コーパス
 
 `docs/04-metrics.md`「ゴールデン音源セット」の実体。選定根拠・ライセンス調査・
-却下した候補は `docs/adr/0003-golden-corpus.md` を参照。
+却下した候補は `docs/adr/0004-golden-corpus.md` を参照。
 
 **このセットは一度確定したら変えない。** 追加・削除・差し替えには必ずADRを
 書く（`docs/adr/README.md`）。
