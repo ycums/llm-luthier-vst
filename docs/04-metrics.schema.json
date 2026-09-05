@@ -130,12 +130,17 @@
             "type": "object",
             "properties": {
               "name": { "type": "string", "minLength": 1 },
-              "version": { "type": "string", "minLength": 1 }
+              "version": { "type": "string", "minLength": 1 },
+              "n_formants": { "type": "integer", "minimum": 1 },
+              "frame_length": { "type": "integer", "minimum": 1 },
+              "hop_length": { "type": "integer", "minimum": 1 },
+              "fft_size": { "type": "integer", "minimum": 2 },
+              "max_track_gap_hz": { "type": "number", "minimum": 0 }
             },
             "required": ["name", "version"],
             "additionalProperties": false
           },
-          "description": "f0推定・フォルマント推定など、算出に使った推定アルゴリズムの名前とバージョン（Q-010 / Q-011 参照）。"
+          "description": "f0推定・フォルマント推定など、算出に使った推定アルゴリズムの名前とバージョン。フォルマント推定（stft-peak-tracking）はその方式（追跡数・フレーム/ホップ長・FFTサイズ・追跡幅）も記録する（Q-010 参照）。"
         }
       },
       "required": [

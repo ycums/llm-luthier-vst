@@ -1,15 +1,10 @@
-"""全体指標（P0-05 #5）・区間別指標（P0-06 #6）・帯域別指標（P0-07 #7）と軌跡指標の一部（P0-08 #8）の実装。
+"""全体指標（P0-05 #5）・区間別指標（P0-06 #6）・帯域別指標（P0-07 #7）と軌跡指標（P0-08 #8 / P0-09 #9）の実装。
 
-`docs/04-metrics.md` の「全体指標」「区間別指標」「帯域別指標」、および軌跡指標のうちトランジェント
-包絡相関・f0軌跡距離を算出し、`docs/04-metrics.schema.json` に valid な指標ベクトル全体
+`docs/04-metrics.md` の「全体指標」「区間別指標」「帯域別指標」「軌跡指標」（トランジェント包絡相関・
+f0軌跡距離・フォルマント軌跡距離）を算出し、`docs/04-metrics.schema.json` に valid な指標ベクトル全体
 （overall / segments / bands / trajectories / calc_conditions）を組み立てる。
 区間別指標は全体指標と同じ3指標（msstft / mfcc / loudness_diff_db）を、区間境界で
 切り出した部分波形に対して算出したものである。
-
-帯域別指標（P0-07 #7）と区間別指標は本モジュールで実際に算出する。残るフォルマント軌跡距離（P0-09）
-のみがスコープ外であり、欠測（`value: null` + `missing_reason`）として出力する。
-estimation_algorithms に記録するf0推定アルゴリズムは軌跡指標（P0-08 #8）で使用する pYIN であり、
-フォルマント推定（P0-09）は未使用のため記録しない（Q-011 参照）。
 
 ## 区間境界は外部入力である（Issue #6 完了条件）
 
@@ -25,6 +20,10 @@ estimation_algorithms に記録するf0推定アルゴリズムは軌跡指標�
 に外出ししてある。この既定値は暫定であり、帯域分割方式（等間隔/メル/バーク）自体は
 `docs/06-open-questions.md` の Q-004 が未解決である（本Issueは Q-004 を解決するものではない。
 Q-004 解決に必要な観測を行うために方式を切り替え可能にするのがそのIssueの目的）。
+
+estimation_algorithms に記録する推定アルゴリズムは、f0推定（P0-08 で使用する pYIN）と
+フォルマント推定（P0-09 で使用する `stft-peak-tracking`）の2つ。フォルマント推定・追跡の
+方式は暫定であり、その是非は docs/06-open-questions.md Q-010 の観測対象。
 
 ## ラウドネス差の定義と符号
 
@@ -147,6 +146,24 @@ DEFAULT_F0_HOP_LENGTH = 256
 #: 選定の背景・代替案は docs/06-open-questions.md Q-011 を参照。
 F0_ALGORITHM_NAME = "pyin"
 
+#: フォルマント推定・追跡の算出条件。方式の選択理由・暫定性は docs/06-open-questions.md Q-010 参照。
+FORMANT_ALGORITHM_NAME = "stft-peak-tracking"
+#: フォルマント追跡の対象数。
+DEFAULT_N_FORMANTS = 3
+#: フォルマント推定のフレームパラメータ。
+DEFAULT_FORMANT_FRAME_LENGTH = 1600  # 100ms
+DEFAULT_FORMANT_HOP_LENGTH = 320  # 20ms
+DEFAULT_FORMANT_FFT_SIZE = 1024
+DEFAULT_FORMANT_FMIN_HZ = 200.0
+DEFAULT_FORMANT_FMAX_HZ = 5000.0
+#: 対数振幅スペクトルの平滑化幅。
+DEFAULT_FORMANT_SMOOTH_FRAMES = 9
+#: フレーム間追跡の対応付け幅（tracking rule, Q-010）。
+DEFAULT_FORMANT_MAX_TRACK_GAP_HZ = 300.0
+#: 初期化のピーク選択で、既選択ピークとこれ以上離れていないピークは同一フォルマントとみなさない
+#: （非最大値抑制, peak selection rule, Q-010）。
+DEFAULT_FORMANT_MIN_SEP_HZ = 250.0
+
 #: アタック区間の既定境界（秒）。ノートオンを0秒として [0, DEFAULT_ATTACK_END_S) をアタックとする。
 #: docs/04-metrics.md に明記されているとおり**仮の値**（20ms）であり、妥当性は
 #: docs/06-open-questions.md の Q-009 として未解決のまま。遷移部・定常部・リリースの境界には
@@ -157,11 +174,9 @@ DEFAULT_ATTACK_END_S: float = 0.02
 _LOUDNESS_RMS_EPS = 1e-12
 
 #: 出力する指標ベクトルのスキーマバージョン（docs/04-metrics.schema.json に合わせる）。
+#: segments/bands の実装（P0-06/P0-07）で 2.0.0（segment_boundaries の null 許容）、
+#: フォルマント軌跡距離の実装（P0-09）で estimation_algorithms に方式パラメータを追加した。
 SCHEMA_VERSION = "2.0.0"
-
-_NOT_IMPLEMENTED_REASONS = {
-    "formant_dist": "フォルマント軌跡距離は本モジュールのスコープ外（P0-09 で実装予定）",
-}
 
 #: 区間境界が注釈として与えられていない場合の欠測理由（segment名ごと）。
 _SEGMENT_BOUNDARY_MISSING_REASONS = {
@@ -451,16 +466,219 @@ def f0_trajectory_distance(
     return _metric_value(float(np.mean(diff)))
 
 
+def _log_magnitude_spectrum_peaks(
+    signal: np.ndarray,
+    sample_rate: int,
+    frame_length: int = DEFAULT_FORMANT_FRAME_LENGTH,
+    hop_length: int = DEFAULT_FORMANT_HOP_LENGTH,
+    smooth_frames: int = DEFAULT_FORMANT_SMOOTH_FRAMES,
+    fft_size: int = DEFAULT_FORMANT_FFT_SIZE,
+    fmin: float = DEFAULT_FORMANT_FMIN_HZ,
+    fmax: float = DEFAULT_FORMANT_FMAX_HZ,
+) -> tuple[list[list[float]], list[np.ndarray]]:
+    """フレームごとの対数振幅スペクトルのローカル極大（ピーク）の周波数Hzを返す。
+
+    各フレームをハン窓で掛けてFFTし、対数振幅を `smooth_frames` 幅で平滑化してから局所極大を
+    拾う。帯域は `[fmin, fmax]`。戻り値は `(peak_freqs_per_frame, frame_freqs)`。空フレームは空リスト。
+    """
+    import scipy.ndimage
+    from scipy.signal import find_peaks
+
+    n = len(signal)
+    frames_freqs = []
+    peaks_per_frame: list[list[float]] = []
+    fft_freqs = np.fft.rfftfreq(fft_size, d=1.0 / sample_rate)
+    for start in range(0, max(n - frame_length + 1, 0), hop_length):
+        frame = signal[start : start + frame_length]
+        if len(frame) < frame_length:
+            break
+        win = np.hanning(frame_length)
+        mag = np.abs(np.fft.rfft(frame * win, n=fft_size))
+        log_mag = np.log(mag + 1e-12)
+        if smooth_frames > 1:
+            log_mag = scipy.ndimage.uniform_filter1d(log_mag, size=smooth_frames)
+        band = (fft_freqs >= fmin) & (fft_freqs <= fmax)
+        fb = fft_freqs[band]
+        mb = log_mag[band]
+        pk, _ = find_peaks(mb)
+        peaks = fb[pk]
+        frames_freqs.append(fft_freqs)
+        peaks_per_frame.append(peaks.tolist() if len(peaks) else [])
+    return peaks_per_frame, frames_freqs
+
+
+def estimate_formant_tracks(
+    signal: np.ndarray,
+    sample_rate: int,
+    n_formants: int = DEFAULT_N_FORMANTS,
+    frame_length: int = DEFAULT_FORMANT_FRAME_LENGTH,
+    hop_length: int = DEFAULT_FORMANT_HOP_LENGTH,
+    max_track_gap_hz: float = DEFAULT_FORMANT_MAX_TRACK_GAP_HZ,
+    smooth_frames: int = DEFAULT_FORMANT_SMOOTH_FRAMES,
+    fft_size: int = DEFAULT_FORMANT_FFT_SIZE,
+    fmin: float = DEFAULT_FORMANT_FMIN_HZ,
+    fmax: float = DEFAULT_FORMANT_FMAX_HZ,
+) -> np.ndarray:
+    """フレームごとのスペクトルピークから、`n_formants` 本のフォルマント軌跡を追跡する。
+
+    戻り値は `(n_formants, n_frames)` のfloat配列。未追跡（続きが見つからない）は NaN。
+
+    対応付け規則（docs/06-open-questions.md Q-010）：初期化は最初のフレームのピーク群を
+    振幅の大きい順に `n_formants` 本選び昇順に並べる。以降の各フレームは、前フレームの追跡値から
+    `max_track_gap_hz` 以内の最も近いピークへ継続する（1ピーク1追跡の貪欲割当）。範囲内に候補が
+    ないフレームは NaN とする。安定性（決定論）を優先する素朴な追跡であり、代替規則は Q-010 を
+    待って比較する。
+    """
+    peaks_per_frame, _freqs = _log_magnitude_spectrum_peaks(
+        signal,
+        sample_rate=sample_rate,
+        frame_length=frame_length,
+        hop_length=hop_length,
+        smooth_frames=smooth_frames,
+        fft_size=fft_size,
+        fmin=fmin,
+        fmax=fmax,
+    )
+    n_frames = len(peaks_per_frame)
+    if n_frames == 0:
+        return np.full((n_formants, 0), np.nan)
+
+    tracks = np.full((n_formants, n_frames), np.nan)
+    prev_freqs = None
+
+    for fi in range(n_frames):
+        pk = peaks_per_frame[fi]
+        if not pk:
+            prev_freqs = None
+            continue
+        cand = np.sort(np.array(pk, dtype=np.float64))
+        if prev_freqs is None or not np.isfinite(prev_freqs).any():
+            # 初期化（あるいは途切れ後の再初期化）
+            use = _initial_formants(signal, sample_rate, frame_length, hop_length,
+                                    fi, n_formants, smooth_frames, fft_size, fmin, fmax)
+            prev_freqs = use.copy() if len(use) == n_formants else None
+            if prev_freqs is not None:
+                tracks[:, fi] = prev_freqs
+        else:
+            # 追跡：前フレームの各値から max_track_gap_hz 以内の最も近い候補へ（貪欲、1ピーク1追跡）
+            assigned = np.full(prev_freqs.shape, np.nan)
+            used = set()
+            for i, pv in enumerate(prev_freqs):
+                if np.isnan(pv):
+                    continue
+                best_j, best_d = None, max_track_gap_hz
+                for j, cj in enumerate(cand):
+                    if j in used:
+                        continue
+                    d = abs(cj - pv)
+                    if d <= best_d:
+                        best_d, best_j = d, j
+                if best_j is not None:
+                    assigned[i] = cand[best_j]
+                    used.add(best_j)
+            tracks[:, fi] = assigned
+            prev_freqs = assigned.copy()
+    return tracks
+
+
+def _initial_formants(
+    signal: np.ndarray,
+    sample_rate: int,
+    frame_length: int,
+    hop_length: int,
+    frame_index: int,
+    n_formants: int,
+    smooth_frames: int,
+    fft_size: int,
+    fmin: float,
+    fmax: float,
+    min_sep_hz: float = DEFAULT_FORMANT_MIN_SEP_HZ,
+) -> np.ndarray:
+    """`frame_index` フレームのスペクトルピークから n_formants 本を選び昇順に返す。
+
+    Peak selection rule (Q-010)：候補を振幅の大きい順に走査し、**選択済みピークから
+    `min_sep_hz` 以上離れたもの**だけを選ぶ（非最大値抑制）。足りなければ空を返す（欠測扱い）。
+    """
+    import scipy.ndimage
+    from scipy.signal import find_peaks
+
+    start = frame_index * hop_length
+    frame = signal[start : start + frame_length]
+    win = np.hanning(frame_length)
+    mag = np.abs(np.fft.rfft(frame * win, n=fft_size))
+    log_mag = np.log(mag + 1e-12)
+    if smooth_frames > 1:
+        log_mag = scipy.ndimage.uniform_filter1d(log_mag, size=smooth_frames)
+    freqs = np.fft.rfftfreq(fft_size, d=1.0 / sample_rate)
+    band = (freqs >= fmin) & (freqs <= fmax)
+    fb = freqs[band]
+    mb = log_mag[band]
+    pk, _ = find_peaks(mb)
+    if len(pk) == 0:
+        return np.array([])
+
+    # 振幅の大きい順（peak selection rule）
+    order = pk[np.argsort(mb[pk])[::-1]]
+    selected = []
+    for i in order:
+        fi = fb[i]
+        if all(abs(fi - s) >= min_sep_hz for s in selected):
+            selected.append(fi)
+        if len(selected) >= n_formants:
+            break
+    return np.sort(np.array(selected))
+
+
+def formant_trajectory_distance(
+    target: np.ndarray,
+    candidate: np.ndarray,
+    sample_rate: int,
+    n_formants: int = DEFAULT_N_FORMANTS,
+    frame_length: int = DEFAULT_FORMANT_FRAME_LENGTH,
+    hop_length: int = DEFAULT_FORMANT_HOP_LENGTH,
+    max_track_gap_hz: float = DEFAULT_FORMANT_MAX_TRACK_GAP_HZ,
+    smooth_frames: int = DEFAULT_FORMANT_SMOOTH_FRAMES,
+    fft_size: int = DEFAULT_FORMANT_FFT_SIZE,
+    fmin: float = DEFAULT_FORMANT_FMIN_HZ,
+    fmax: float = DEFAULT_FORMANT_FMAX_HZ,
+) -> dict:
+    """フォルマント軌跡の平均絶対誤差（Hz）。両方が追跡できたフレーム（非NaN）のヘルツ差を平均する。
+
+    対応付け規則（Q-010）のとおり、各フォルマントは周波数近接でフレーム間継続される。
+    比較できたフレームが1つもない場合は欠測を返す。
+    """
+    tracks_t = estimate_formant_tracks(
+        target, sample_rate, frame_length=frame_length, hop_length=hop_length,
+        n_formants=n_formants, max_track_gap_hz=max_track_gap_hz,
+        smooth_frames=smooth_frames, fft_size=fft_size, fmin=fmin, fmax=fmax,
+    )
+    tracks_c = estimate_formant_tracks(
+        candidate, sample_rate, frame_length=frame_length, hop_length=hop_length,
+        n_formants=n_formants, max_track_gap_hz=max_track_gap_hz,
+        smooth_frames=smooth_frames, fft_size=fft_size, fmin=fmin, fmax=fmax,
+    )
+    n_frames = min(tracks_t.shape[1], tracks_c.shape[1])
+    t = tracks_t[:, :n_frames]
+    c = tracks_c[:, :n_frames]
+    both = np.isfinite(t) & np.isfinite(c)
+    if not np.any(both):
+        return _missing(
+            "target と candidate でフォルマントを追跡できたフレームが重ならないため算出不能"
+        )
+    diff = np.abs(t - c)[both]
+    return _metric_value(float(np.mean(diff)))
+
+
 def compute_trajectory_metrics(
     target: np.ndarray,
     candidate: np.ndarray,
     sample_rate: int,
 ) -> dict:
-    """軌跡指標3件を組み立てる。フォルマント軌跡距離はP0-09のスコープであり欠測とする。"""
+    """軌跡指標3件を組み立てる。フォルマント軌跡距離（P0-09）も算出する。"""
     return {
         "transient_env_corr": transient_envelope_correlation(target, candidate),
         "f0_dist": f0_trajectory_distance(target, candidate, sample_rate),
-        "formant_dist": _missing(_NOT_IMPLEMENTED_REASONS["formant_dist"]),
+        "formant_dist": formant_trajectory_distance(target, candidate, sample_rate),
     }
 
 
@@ -578,11 +796,11 @@ def compute_metrics_vector(
 ) -> dict:
     """2つのWAVパスから、`docs/04-metrics.schema.json` に valid な指標ベクトルを組み立てる。
 
-    全体指標（overall）・区間別指標（segments）・帯域別指標（bands）と、軌跡指標のうちトランジェント
-    包絡相関・f0軌跡距離を実際に算出する（P0-05 #5 / P0-06 #6 / P0-07 #7 / P0-08 #8）。
+    全体指標（overall）・区間別指標（segments）・帯域別指標（bands）と、軌跡指標
+    （トランジェント包絡相関・f0軌跡距離・フォルマント軌跡距離、P0-08/P0-09）を実際に算出する
+    （P0-05 #5 / P0-06 #6 / P0-07 #7 / P0-08 #8 / P0-09 #9）。
     区間境界のうち `transition_end_s` / `sustain_end_s` は既定値を持たない外部入力であり、
-    与えられなければ該当区間は欠測になる（`_segment_slice_bounds` 参照）。フォルマント軌跡距離
-    （P0-09）は欠測として出力する。
+    与えられなければ該当区間は欠測になる（`_segment_slice_bounds` 参照）。
     """
     target_path = Path(target_path)
     candidate_path = Path(candidate_path)
@@ -628,9 +846,18 @@ def compute_metrics_vector(
                 float(sustain_end_s) if sustain_end_s is not None else None
             ),
         },
-        # f0推定は pYIN（軌跡指標 P0-08 #8）で使用。フォルマント推定（P0-09）は未使用。
+        # f0推定（pYIN）とフォルマント推定（STFTピーク追跡）を使用。
         "estimation_algorithms": [
-            {"name": F0_ALGORITHM_NAME, "version": librosa.__version__}
+            {"name": F0_ALGORITHM_NAME, "version": librosa.__version__},
+            {
+                "name": FORMANT_ALGORITHM_NAME,
+                "version": "1",
+                "n_formants": DEFAULT_N_FORMANTS,
+                "frame_length": DEFAULT_FORMANT_FRAME_LENGTH,
+                "hop_length": DEFAULT_FORMANT_HOP_LENGTH,
+                "fft_size": DEFAULT_FORMANT_FFT_SIZE,
+                "max_track_gap_hz": DEFAULT_FORMANT_MAX_TRACK_GAP_HZ,
+            },
         ],
     }
 
@@ -652,10 +879,19 @@ __all__ = [
     "DEFAULT_F0_FRAME_LENGTH",
     "DEFAULT_F0_HOP_LENGTH",
     "DEFAULT_FFT_SIZES",
+    "DEFAULT_FORMANT_FFT_SIZE",
+    "DEFAULT_FORMANT_FMAX_HZ",
+    "DEFAULT_FORMANT_FMIN_HZ",
+    "DEFAULT_FORMANT_FRAME_LENGTH",
+    "DEFAULT_FORMANT_HOP_LENGTH",
+    "DEFAULT_FORMANT_MAX_TRACK_GAP_HZ",
+    "DEFAULT_FORMANT_SMOOTH_FRAMES",
+    "DEFAULT_N_FORMANTS",
     "DEFAULT_N_MFCC",
     "DEFAULT_TRANSIENT_ENV_FRAME_LENGTH",
     "DEFAULT_TRANSIENT_ENV_HOP_LENGTH",
     "F0_ALGORITHM_NAME",
+    "FORMANT_ALGORITHM_NAME",
     "SCHEMA_VERSION",
     "band_spectral_error",
     "compute_band_metrics",
@@ -664,7 +900,9 @@ __all__ = [
     "compute_segment_metrics",
     "compute_trajectory_metrics",
     "estimate_f0_contour",
+    "estimate_formant_tracks",
     "f0_trajectory_distance",
+    "formant_trajectory_distance",
     "loudness_diff_db",
     "mfcc_distance",
     "multiscale_spectral_distance",

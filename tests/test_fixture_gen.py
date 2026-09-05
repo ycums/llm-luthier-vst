@@ -43,7 +43,7 @@ def _pair_meta(meta: dict, name: str) -> dict:
     raise AssertionError(f"pair {name} not found")
 
 
-def test_generate_all_produces_six_pairs_with_metadata(tmp_path: Path) -> None:
+def test_generate_all_produces_eight_pairs_with_metadata(tmp_path: Path) -> None:
     meta = generate_all(tmp_path, seed=0)
 
     names = [p["name"] for p in meta["pairs"]]
@@ -54,6 +54,8 @@ def test_generate_all_produces_six_pairs_with_metadata(tmp_path: Path) -> None:
         "d_noise",
         "e_attack_shift",
         "f_f0_glide",
+        "g_formant_shift",
+        "h_formant_glide",
     }
 
     for p in meta["pairs"]:

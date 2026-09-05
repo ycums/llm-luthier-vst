@@ -188,9 +188,7 @@ def test_compute_metrics_vector_reports_trajectory_metrics(fixtures) -> None:
     trajectories = vector["trajectories"]
     assert trajectories["transient_env_corr"]["value"] == pytest.approx(1.0, abs=1e-9)
     assert trajectories["f0_dist"]["value"] == pytest.approx(0.0, abs=1e-6)
-    # フォルマント軌跡距離はP0-09のスコープであり、本Issueでは引き続き欠測
-    assert trajectories["formant_dist"]["value"] is None
-    assert trajectories["formant_dist"]["missing_reason"]
+    # フォルマント軌跡距離はP0-09で実装済み（欠測の検証は test_formant_metrics.py）
 
 
 def test_calc_conditions_records_f0_estimation_algorithm(fixtures) -> None:
