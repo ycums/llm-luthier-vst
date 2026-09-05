@@ -113,12 +113,12 @@
           "description": "帯域別指標の帯域端（Hz、昇順）。分割方式（等間隔/メル/バーク、Q-004）に関わらずこの形式で記録する。"
         },
         "segment_boundaries_s": {
-          "description": "区間境界。ノートオンを0秒とする。attackは0〜attack_end_s、以降transition_end_sまでtransition、sustain_end_sまでsustain、それ以降がrelease。",
+          "description": "区間境界。ノートオンを0秒とする。attackは0〜attack_end_s、以降transition_end_sまでtransition、sustain_end_sまでsustain、それ以降がrelease。attack_end_sは常に値を持つ（既定値は`docs/04-metrics.md`が明記する仮の値、Q-009参照）。transition_end_s / sustain_end_sは音源ごとの注釈として外部から与えられる値であり、既定値を持たない：与えられていない場合はnullになり、対応するsegmentsの区間（transition/sustain/release）はvalue=null・missing_reason付きの欠測として出力される（Issue #6）。",
           "type": "object",
           "properties": {
             "attack_end_s": { "type": "number", "minimum": 0 },
-            "transition_end_s": { "type": "number", "minimum": 0 },
-            "sustain_end_s": { "type": "number", "minimum": 0 }
+            "transition_end_s": { "type": ["number", "null"], "minimum": 0 },
+            "sustain_end_s": { "type": ["number", "null"], "minimum": 0 }
           },
           "required": ["attack_end_s", "transition_end_s", "sustain_end_s"],
           "additionalProperties": false

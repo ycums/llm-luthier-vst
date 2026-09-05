@@ -1,4 +1,4 @@
-"""harness.metrics（全体指標: msstft / mfcc / loudness_diff_db）のテスト。
+"""harness.metrics（全体指標・区間別指標: msstft / mfcc / loudness_diff_db）のテスト。
 
 Issue #5 の完了条件を検証する：
 - 2つのWAVパスから #3 のスキーマに valid な指標ベクトルJSONを組み立てられる
@@ -8,6 +8,15 @@ Issue #5 の完了条件を検証する：
 - 既知のローパス済みペアに対し、マルチスケールスペクトル距離が同一ペアより大きい
 - 使用したFFTサイズ集合が calc_conditions.fft_sizes に記録される
 - 同一入力に対して2回実行した出力JSONがビット単位で一致する
+
+Issue #6 の完了条件を検証する：
+- 区間境界を外部入力として受け取り、指定された各区間について全体指標と同じ3指標を算出する
+- アタック区間の既定値（0〜20ms）で、注釈なしでもアタックは算出される
+- 遷移部/定常部/リリースの境界が注釈として与えられていない場合、該当区間は欠測（理由付き）
+  として出力され、エラーにならない
+- 使用した区間境界の実値が calc_conditions.segment_boundaries_s に記録される
+- アタック位置が既知の時間だけずれたフィクスチャに対し、アタック区間の誤差が定常部の誤差より
+  大きい
 """
 
 from __future__ import annotations
@@ -20,8 +29,9 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from harness.fixture_gen import GAIN_DB, LOWPASS_CUTOFF_HZ, generate_all
+from harness.fixture_gen import GAIN_DB, LOWPASS_CUTOFF_HZ, ONSET_SHIFT_S, generate_all
 from harness.metrics import (
+    DEFAULT_ATTACK_END_S,
     DEFAULT_FFT_SIZES,
     compute_metrics_vector,
     loudness_diff_db,
@@ -114,23 +124,141 @@ def test_calc_conditions_records_fft_sizes_used(fixtures) -> None:
 
 
 def test_out_of_scope_sections_are_reported_as_missing(fixtures) -> None:
-    """区間別指標とフォルマント軌跡距離は本モジュールのスコープ外であり、欠測として出力する。
+    """フォルマント軌跡距離（P0-09）のみがスコープ外であり、欠測として出力する。
 
-    帯域別指標（P0-07 #7）と軌跡指標のうちトランジェント包絡相関・f0軌跡距離（P0-08 #8）は
-    実装済みのため、ここでは欠測を検証しない（`tests/test_trajectory_metrics.py` を参照）。
+    区間別指標（P0-06 #6）・帯域別指標（P0-07 #7）・軌跡指標のうちトランジェント包絡相関と
+    f0軌跡距離（P0-08 #8）は実装済みのため、ここでは欠測を検証しない
+    （`tests/test_trajectory_metrics.py` を参照）。
     """
     out_dir, meta = fixtures
     p = _pair_meta(meta, "a_identical")
 
     vector = compute_metrics_vector(out_dir / p["target"], out_dir / p["candidate"])
 
-    for segment in vector["segments"].values():
+    assert vector["trajectories"]["formant_dist"]["value"] is None
+    assert vector["trajectories"]["formant_dist"]["missing_reason"]
+
+
+def test_attack_segment_is_computed_with_default_boundary_and_no_annotation(
+    fixtures,
+) -> None:
+    """アタックは既定境界（0〜20ms）を持つため、注釈なしでも算出される（Issue #6）。"""
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "a_identical")
+
+    vector = compute_metrics_vector(out_dir / p["target"], out_dir / p["candidate"])
+
+    attack = vector["segments"]["attack"]
+    for metric in attack.values():
+        assert metric["value"] == pytest.approx(0.0, abs=1e-9)
+        assert metric["missing_reason"] is None
+
+
+def test_transition_sustain_release_are_missing_without_boundary_annotations(
+    fixtures,
+) -> None:
+    """遷移部/定常部/リリースは境界の注釈がなければ欠測（理由付き）になり、落ちない（Issue #6）。"""
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "a_identical")
+
+    vector = compute_metrics_vector(out_dir / p["target"], out_dir / p["candidate"])
+
+    for segment_name in ("transition", "sustain", "release"):
+        segment = vector["segments"][segment_name]
         for metric in segment.values():
             assert metric["value"] is None
             assert metric["missing_reason"]
 
-    assert vector["trajectories"]["formant_dist"]["value"] is None
-    assert vector["trajectories"]["formant_dist"]["missing_reason"]
+
+def test_calc_conditions_records_actual_segment_boundaries_used(fixtures) -> None:
+    """使用した区間境界の実値が calc_conditions に記録される（Issue #6 完了条件）。"""
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "a_identical")
+
+    default_vector = compute_metrics_vector(out_dir / p["target"], out_dir / p["candidate"])
+    boundaries = default_vector["calc_conditions"]["segment_boundaries_s"]
+    assert boundaries["attack_end_s"] == pytest.approx(DEFAULT_ATTACK_END_S)
+    assert boundaries["transition_end_s"] is None
+    assert boundaries["sustain_end_s"] is None
+
+    given_vector = compute_metrics_vector(
+        out_dir / p["target"],
+        out_dir / p["candidate"],
+        attack_end_s=0.03,
+        transition_end_s=0.1,
+        sustain_end_s=0.4,
+    )
+    given_boundaries = given_vector["calc_conditions"]["segment_boundaries_s"]
+    assert given_boundaries == {
+        "attack_end_s": pytest.approx(0.03),
+        "transition_end_s": pytest.approx(0.1),
+        "sustain_end_s": pytest.approx(0.4),
+    }
+    for segment_name in ("attack", "transition", "sustain", "release"):
+        for metric in given_vector["segments"][segment_name].values():
+            assert metric["missing_reason"] is None
+
+
+def test_metrics_vector_with_all_boundaries_given_is_valid_against_schema(
+    fixtures,
+) -> None:
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "a_identical")
+
+    vector = compute_metrics_vector(
+        out_dir / p["target"],
+        out_dir / p["candidate"],
+        transition_end_s=0.1,
+        sustain_end_s=0.4,
+    )
+
+    jsonschema.validate(instance=vector, schema=_load_schema())
+
+
+def test_attack_segment_error_is_larger_than_sustain_segment_error_for_shifted_onset(
+    fixtures,
+) -> None:
+    """アタック位置が既知の時間だけずれたフィクスチャで、アタック区間の誤差が定常部より大きい
+
+    （Issue #6 完了条件）。onset_shift_s の間 candidate は無音であり、既定のアタック境界
+    （20ms）は無音区間の内側に収まる（20ms < ONSET_SHIFT_S）ため、アタック区間には
+    ずれの影響がそのまま現れる。
+    """
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "e_attack_shift")
+    assert DEFAULT_ATTACK_END_S < ONSET_SHIFT_S
+
+    vector = compute_metrics_vector(
+        out_dir / p["target"],
+        out_dir / p["candidate"],
+        transition_end_s=0.1,
+        sustain_end_s=0.45,
+    )
+
+    attack_msstft = vector["segments"]["attack"]["msstft"]["value"]
+    sustain_msstft = vector["segments"]["sustain"]["msstft"]["value"]
+    attack_mfcc = vector["segments"]["attack"]["mfcc"]["value"]
+    sustain_mfcc = vector["segments"]["sustain"]["mfcc"]["value"]
+
+    assert attack_msstft > sustain_msstft
+    assert attack_mfcc > sustain_mfcc
+
+
+def test_segment_boundary_beyond_source_length_is_missing_not_an_error(fixtures) -> None:
+    """波形長を超える境界（区間長0）でも例外にならず、欠測として出力される（Issue #6）。"""
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "a_identical")
+
+    vector = compute_metrics_vector(
+        out_dir / p["target"],
+        out_dir / p["candidate"],
+        transition_end_s=10.0,
+        sustain_end_s=10.0,
+    )
+
+    for metric in vector["segments"]["sustain"].values():
+        assert metric["value"] is None
+        assert metric["missing_reason"]
 
 
 def test_compute_metrics_vector_with_band_edges_produces_actual_errors(fixtures) -> None:
@@ -308,6 +436,44 @@ def test_cli_metrics_subcommand_outputs_valid_json(fixtures) -> None:
 
     vector = json.loads(result.stdout)
     jsonschema.validate(instance=vector, schema=_load_schema())
+
+
+def test_cli_metrics_subcommand_accepts_segment_boundary_flags(fixtures) -> None:
+    """--attack-end-s/--transition-end-s/--sustain-end-s がそのまま算出条件に反映される。"""
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "a_identical")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "harness",
+            "metrics",
+            str(out_dir / p["target"]),
+            str(out_dir / p["candidate"]),
+            "--attack-end-s",
+            "0.03",
+            "--transition-end-s",
+            "0.1",
+            "--sustain-end-s",
+            "0.4",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    vector = json.loads(result.stdout)
+    jsonschema.validate(instance=vector, schema=_load_schema())
+    boundaries = vector["calc_conditions"]["segment_boundaries_s"]
+    assert boundaries == {
+        "attack_end_s": pytest.approx(0.03),
+        "transition_end_s": pytest.approx(0.1),
+        "sustain_end_s": pytest.approx(0.4),
+    }
+    for segment in vector["segments"].values():
+        for metric in segment.values():
+            assert metric["missing_reason"] is None
 
 
 def test_cli_metrics_subcommand_is_bit_exact_across_processes(fixtures) -> None:
