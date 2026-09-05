@@ -11,6 +11,7 @@
 | `harness/cli.py` | エントリポイント（`llm-luthier-harness` / `python -m harness`） |
 | `harness/fixture_gen.py` | 既知解テスト用の合成フィクチャ生成器（差が既知の音源ペアを決定論的に生成） |
 | `harness/metrics.py` | 全体指標（マルチスケールスペクトル距離 / MFCC距離 / ラウドネス差）の算出（P0-05） |
+| `harness/spectrogram.py` | スペクトログラム画像対の生成器（PRに添付するエビデンス。図示のみで指標算出はしない） |
 
 ## フィクチャ生成（P0-04）
 
@@ -39,6 +40,29 @@ python -m harness metrics <target.wav> <candidate.wav>
 - 各指標の定義・ラウドネス差の符号の向き・使用したFFTサイズ集合は `harness/metrics.py` の
   docstringに書く（実装と規則の説明を分離すると乖離するため）
 - 同一入力に対して2回実行した出力JSONはビット単位で一致する（決定論）
+
+## スペクトログラム画像の生成（P0-14）
+
+音に影響する変更のPRに添付する「差分が最大だった1〜2音源のスペクトログラム画像（変更前後の対）」を生成する（`AGENTS.md` 第4節「エビデンス要件」）。
+
+```
+python -m harness spectrogram --target <before.wav> --candidate <after.wav> --out <dir> \
+    --db-min -80.0 --db-max 0.0
+```
+
+- `<dir>` 直下に `target.png` / `candidate.png` /（既定で）`diff.png` と、`metadata.json`（サイドカー）を生成する
+- `target.png` と `candidate.png` は、同一の周波数軸範囲（同一サンプルレートに由来）・同一の時間軸範囲・**同一のカラースケール範囲**（`--db-min`/`--db-max`）で描画される。この範囲は自動調整に任せず固定値として両方に渡すため、信号レベルが違っても2枚のスケールは食い違わない。指定した範囲は画像内のカラーバーラベルにも表示される
+- `diff.png` は candidate と target の同一グリッド上での差（dB）を示す。`--no-diff` で生成を止められる
+- FFTサイズ・ホップ長・窓関数（`--fft-size` / `--hop-length` / `--window`）は画像タイトルと `metadata.json` の両方に記録する。これらは図示のためだけの設定であり、`docs/06-open-questions.md` Q-004（帯域分割方式）や指標算出には一切影響しない
+- target と candidate のサンプル数が異なる場合、STFTグリッドがずれるため `AudioLengthMismatchError` で停止する（暗黙のパディング・切り詰めはしない）
+- 同一環境・同一入力で2回実行すると、生成される全ファイル（PNG・metadata.json）がビット単位で一致する（決定論）
+- 生成物はバージョン管理に含めない。`--out` の出力先は `.gitignore` が無視する `renders/` 配下（例：`renders/spectrograms/<name>/`）を使うこと
+
+### PRへの添付手順
+
+1. 変更前・変更後のレンダ結果のうち、指標ベクトル差分が最大だった1〜2音源を選ぶ（選定ロジックは本ツールの範囲外。人間またはCIの手順が判断する）
+2. 上記コマンドで `target.png` / `candidate.png` /（任意で）`diff.png` を生成する
+3. 生成したPNGをPR本文に画像として貼り付ける（GitHubのPRエディタにドラッグ＆ドロップ、またはIssue/PRコメントの添付機能を使う）
 
 ## 音声I/Oの規則
 
