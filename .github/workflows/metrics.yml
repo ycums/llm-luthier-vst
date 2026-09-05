@@ -12,6 +12,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # 手動実行。同一コミットに対する複数回実行の決定論検証（Issue #13 完了条件）に使う。
+  workflow_dispatch:
 
 jobs:
   metrics:
