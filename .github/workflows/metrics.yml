@@ -49,6 +49,15 @@ jobs:
             --out metrics_output/current
           echo "elapsed_s=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
 
+      - name: TEMP dump vectors for baseline regen (この後のコミットで削除)
+        run: |
+          for f in metrics_output/current/*.json; do
+            echo "===FILE:$(basename "$f")==="
+            base64 -w0 "$f"
+            echo
+            echo "===END==="
+          done
+
       - name: Verify output count (成果物件数の検証)
         run: |
           uv run python - <<'PY'
