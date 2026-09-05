@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0.0",
+  "manifest_path": "corpus/manifest.json",
+  "entry_count": 11,
+  "entries": [
+    {
+      "id": "sine_440hz",
+      "status": "ok",
+      "output_file": "sine_440hz.json",
+      "elapsed_s": 14.875959943999987
+    },
+    {
+      "id": "white_noise",
+      "status": "ok",
+      "output_file": "white_noise.json",
+      "elapsed_s": 14.001964927999893
+    },
+    {
+      "id": "violin_pizzicato",
+      "status": "missing",
+      "output_file": "violin_pizzicato.json",
+      "elapsed_s": 8.268500005215174e-05
+    },
+    {
+      "id": "violin_vibrato",
+      "status": "missing",
+      "output_file": "violin_vibrato.json",
+      "elapsed_s": 3.812800002833683e-05
+    },
+    {
+      "id": "violin_tuning",
+      "status": "missing",
+      "output_file": "violin_tuning.json",
+      "elapsed_s": 3.812499994637619e-05
+    },
+    {
+      "id": "crash_cymbal",
+      "status": "missing",
+      "output_file": "crash_cymbal.json",
+      "elapsed_s": 3.7401999975372746e-05
+    },
+    {
+      "id": "snare_drum_rim",
+      "status": "missing",
+      "output_file": "snare_drum_rim.json",
+      "elapsed_s": 3.458100002262654e-05
+    },
+    {
+      "id": "rain_light",
+      "status": "missing",
+      "output_file": "rain_light.json",
+      "elapsed_s": 3.574200002276484e-05
+    },
+    {
+      "id": "tibetan_singing_bowl",
+      "status": "missing",
+      "output_file": "tibetan_singing_bowl.json",
+      "elapsed_s": 3.2216000022344815e-05
+    },
+    {
+      "id": "kalimba_sample",
+      "status": "missing",
+      "output_file": "kalimba_sample.json",
+      "elapsed_s": 3.3402999974896375e-05
+    },
+    {
+      "id": "spoken_hello",
+      "status": "ok",
+      "output_file": "spoken_hello.json",
+      "elapsed_s": 1.337724420000086
+    }
+  ],
+  "summary": {
+    "ok": 3,
+    "missing": 8,
+    "error": 0
+  }
+}

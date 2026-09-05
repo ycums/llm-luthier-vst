@@ -1,0 +1,167 @@
+{
+  "target": "rain_light",
+  "overall": {
+    "msstft": {
+      "value": null,
+      "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+    },
+    "mfcc": {
+      "value": null,
+      "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+    },
+    "loudness_diff_db": {
+      "value": null,
+      "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+    }
+  },
+  "segments": {
+    "attack": {
+      "msstft": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      },
+      "mfcc": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      },
+      "loudness_diff_db": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      }
+    },
+    "transition": {
+      "msstft": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      },
+      "mfcc": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      },
+      "loudness_diff_db": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      }
+    },
+    "sustain": {
+      "msstft": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      },
+      "mfcc": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      },
+      "loudness_diff_db": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      }
+    },
+    "release": {
+      "msstft": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      },
+      "mfcc": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      },
+      "loudness_diff_db": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      }
+    }
+  },
+  "bands": [
+    {
+      "lo_hz": 0.0,
+      "hi_hz": 200.0,
+      "error": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      }
+    },
+    {
+      "lo_hz": 200.0,
+      "hi_hz": 800.0,
+      "error": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      }
+    },
+    {
+      "lo_hz": 800.0,
+      "hi_hz": 2000.0,
+      "error": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      }
+    },
+    {
+      "lo_hz": 2000.0,
+      "hi_hz": 5000.0,
+      "error": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      }
+    },
+    {
+      "lo_hz": 5000.0,
+      "hi_hz": 20000.0,
+      "error": {
+        "value": null,
+        "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+      }
+    }
+  ],
+  "trajectories": {
+    "transient_env_corr": {
+      "value": null,
+      "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+    },
+    "f0_dist": {
+      "value": null,
+      "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+    },
+    "formant_dist": {
+      "value": null,
+      "missing_reason": "target音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/rain_light.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+    }
+  },
+  "calc_conditions": {
+    "schema_version": "2.0.0",
+    "fft_sizes": [
+      512,
+      2048,
+      8192
+    ],
+    "band_edges_hz": [
+      0.0,
+      200.0,
+      800.0,
+      2000.0,
+      5000.0,
+      20000.0
+    ],
+    "segment_boundaries_s": {
+      "attack_end_s": 0.02,
+      "transition_end_s": null,
+      "sustain_end_s": null
+    },
+    "estimation_algorithms": [
+      {
+        "name": "pyin",
+        "version": "0.11.0"
+      },
+      {
+        "name": "stft-peak-tracking",
+        "version": "1",
+        "n_formants": 3,
+        "frame_length": 1600,
+        "hop_length": 320,
+        "fft_size": 1024,
+        "max_track_gap_hz": 300.0
+      }
+    ]
+  }
+}

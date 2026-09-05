@@ -1,0 +1,116 @@
+name: Metrics
+
+# docs/00-vision.md フェーズ0の遷移条件「指標ベクトルがCIで自動出力される」を満たす
+# ワークフロー（Issue #13 / P0-13）。指標算出（run-corpus）と、前回コミットとの差分
+# （diff-corpus）を毎回実行し、結果を成果物とジョブサマリに出す。
+#
+# 指標の値がどうであれこのワークフロー自体は失敗させない（Q-006の暫定の扱い、
+# docs/06-open-questions.md）。失敗させるのは、指標算出そのものが例外で失敗した場合
+# （run-corpusの終了コード1）と、コーパス実行の成果物件数がマニフェストと食い違う場合のみ。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run corpus (指標ベクトル算出)
+        id: run_corpus
+        run: |
+          start=$(date +%s)
+          uv run python -m harness run-corpus \
+            --manifest corpus/manifest.json \
+            --out metrics_output/current
+          echo "elapsed_s=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+
+      - name: Verify output count (成果物件数の検証)
+        run: |
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("corpus/manifest.json").read_text(encoding="utf-8"))
+          index = json.loads(Path("metrics_output/current/index.json").read_text(encoding="utf-8"))
+          expected = len(manifest["entries"])
+          per_id_files = [
+              p for p in Path("metrics_output/current").glob("*.json") if p.name != "index.json"
+          ]
+          assert index["entry_count"] == expected, (
+              f'index.entry_count={index["entry_count"]} != manifest entries={expected}'
+          )
+          assert len(per_id_files) == expected, (
+              f'per-id json files={len(per_id_files)} != manifest entries={expected}'
+          )
+          print(f"ok: {expected} manifest entries -> {expected} json + index.json")
+          PY
+
+      - name: Upload metrics vectors (成果物)
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-vectors
+          path: metrics_output/current
+
+      - name: Diff against baseline (前回コミットとの差分)
+        id: diff_corpus
+        run: |
+          start=$(date +%s)
+          uv run python -m harness diff-corpus \
+            --baseline corpus/baseline \
+            --current metrics_output/current \
+            --out metrics_output/diff
+          echo "elapsed_s=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+
+      - name: Upload diff (成果物)
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-diff
+          path: metrics_output/diff
+
+      - name: Write job summary
+        # 悪化件数・所要時間の要約と、機械可読な差分JSONの全文を書く。表形式などの
+        # 人間向け整形出力はP0-12b-2（#40）のスコープであり、本ステップはそれを
+        # 代替しない（AGENTS.md第8節「先回りして環境を整えない」）。
+        env:
+          RUN_CORPUS_ELAPSED_S: ${{ steps.run_corpus.outputs.elapsed_s }}
+          DIFF_CORPUS_ELAPSED_S: ${{ steps.diff_corpus.outputs.elapsed_s }}
+        run: |
+          uv run python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          from pathlib import Path
+
+          index = json.loads(Path("metrics_output/current/index.json").read_text(encoding="utf-8"))
+          diff = json.loads(Path("metrics_output/diff/diff.json").read_text(encoding="utf-8"))
+
+          print("## 指標ベクトル自動出力（P0-13）")
+          print()
+          print(f"- run-corpus: {index['summary']} / 所要 {os.environ['RUN_CORPUS_ELAPSED_S']}s")
+          print(f"- diff-corpus: {diff['summary']} / 所要 {os.environ['DIFF_CORPUS_ELAPSED_S']}s")
+          print()
+          print("悪化した指標（worsened_metrics）がある音源:")
+          worsened = [t for t in diff["targets"] if t["worsened_metrics"]]
+          if not worsened:
+              print("- なし")
+          else:
+              for t in worsened:
+                  print(f"- {t['id']}: {', '.join(t['worsened_metrics'])}")
+          print()
+          print("<details><summary>diff.json（機械可読・全文）</summary>")
+          print()
+          print("```json")
+          print(json.dumps(diff, ensure_ascii=False, indent=2))
+          print("```")
+          print("</details>")
+          PY

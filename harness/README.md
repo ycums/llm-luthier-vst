@@ -92,6 +92,21 @@ python -m harness diff-corpus --baseline corpus/baseline --current <run-corpus�
 - 基準と今回で構成音源が異なる場合、共通するidだけを比較する。片方にしかないidは `only_in_baseline` / `only_in_current` に記録し、比較対象には含めない
 - **指標の値・悪化件数に関わらず終了コードは常に0**（`docs/06-open-questions.md` Q-006の暫定の扱いに従う）。非0を返すのは基準/今回のディレクトリ自体が読めない、または共通するidが1件もない等、算出そのものが成立しない場合のみ
 
+## CIでの自動出力（P0-13）
+
+`.github/workflows/metrics.yml` が `push`（`main`）と `pull_request` の両方で起動し、
+以下を毎回実行する（`docs/00-vision.md` フェーズ0の遷移条件）。
+
+1. `run-corpus` を実行し、結果（音源ごとのJSON + `index.json`）を `metrics-vectors` として成果物に保存する
+2. `corpus/baseline/`（`docs/04-metrics.md`「基準（baseline）指標JSONの取得方法」）を基準に `diff-corpus` を実行し、結果を `metrics-diff` として成果物に保存する
+3. 悪化した指標の一覧と機械可読な `diff.json` の全文を、ジョブサマリ（GitHub Actionsの実行結果画面）に書く。表形式などの人間向け整形出力はP0-12b-2（#40）のスコープであり、本ワークフローはまだそれを持たない
+4. `run-corpus` / `diff-corpus` それぞれの所要時間（秒）をジョブサマリに書く
+
+**成否が指標の値に依存しない**（`docs/06-open-questions.md` Q-006の暫定の扱い）。ワークフローが
+失敗するのは、`run-corpus` が例外で失敗した場合（終了コード1）と、成果物のJSON件数がマニフェストの
+エントリ数と一致しない場合のみ。同梱不可の音源（`corpus/manifest.json` の `bundled: false`）は
+`run-corpus` 自身の欠測処理により完走する（本ワークフローはそれ以上のフェッチを行わない）。
+
 ## スペクトログラム画像の生成（P0-14）
 
 音に影響する変更のPRに添付する「差分が最大だった1〜2音源のスペクトログラム画像（変更前後の対）」を生成する（`AGENTS.md` 第4節「エビデンス要件」）。
