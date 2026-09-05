@@ -4,7 +4,8 @@
 `metrics`（全体指標・区間別指標・軌跡指標の一部の算出、P0-05/P0-06/P0-08）、`spectrogram`
 （スペクトグラム画像対の生成、P0-14）、`run-corpus`（コーパス全体への指標算出の一括実行、
 P0-11）、`diff-corpus`（コーパス実行結果2組の機械可読な指標差分JSON `diff.json` と、
-人間向けの整形出力 `report.md` の算出、P0-12b-1 / P0-12b-2）の各サブコマンドを提供する。
+人間向けの整形出力 `report.md` の算出、P0-12b-1 / P0-12b-2）、`observe-harmonics`
+（コーパスの倍音構造観測、P1-02）の各サブコマンドを提供する。
 帯域別指標はP0-07、フォルマント軌跡距離はP0-09の範囲。
 """
 
@@ -18,6 +19,8 @@ from pathlib import Path
 from harness.audio_io import read_wav
 from harness.corpus_runner import ManifestError, run_corpus
 from harness.fixture_gen import generate_all
+from harness.harmonic_observation import DEFAULT_N_HARMONICS, observe_corpus
+from harness.harmonic_observation import ManifestError as HarmonicManifestError
 from harness.metrics import DEFAULT_ATTACK_END_S, compute_metrics_vector
 from harness.metrics_diff import MetricsDiffError, run_metrics_diff
 from harness.metrics_diff_report import render_diff_report
@@ -181,6 +184,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out", type=Path, required=True, help="出力先ディレクトリ（作成される）"
     )
 
+    observe_harmonics_parser = subparsers.add_parser(
+        "observe-harmonics",
+        help=(
+            "マニフェストの全エントリに倍音構造観測を実行し、音源ごとのJSONと"
+            "インデックスJSONを出力先ディレクトリに書き出す（P1-02、Q-001の判断材料）"
+        ),
+    )
+    observe_harmonics_parser.add_argument(
+        "--manifest", type=Path, required=True, help="コーパスのマニフェストJSONのパス"
+    )
+    observe_harmonics_parser.add_argument(
+        "--out", type=Path, required=True, help="出力先ディレクトリ（作成される）"
+    )
+    observe_harmonics_parser.add_argument(
+        "--n-harmonics",
+        type=int,
+        default=DEFAULT_N_HARMONICS,
+        help="倍音の同定を試みる最大次数（既定: 8）",
+    )
+
     return parser
 
 
@@ -281,6 +304,25 @@ def _run_diff_corpus(baseline: Path, current: Path, out: Path) -> int:
     return 0
 
 
+def _run_observe_harmonics(manifest: Path, out: Path, n_harmonics: int) -> int:
+    try:
+        index = observe_corpus(manifest, out, n_harmonics=n_harmonics)
+    except HarmonicManifestError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    summary = index["summary"]
+    print(
+        f"entries: {index['entry_count']} "
+        f"(ok={summary['ok']} no_pitch={summary['no_pitch']} "
+        f"missing_audio={summary['missing_audio']} error={summary['error']})"
+    )
+    print(f"index: {out / 'index.json'}")
+    # run-corpus と同じ規約：例外による失敗（error）のみ非0。no_pitch/missing_audioは
+    # 正常系の欠測として扱う（harness/harmonic_observation.py モジュールdocstring参照）。
+    return 1 if summary["error"] > 0 else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -303,6 +345,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_run_corpus(args.manifest, args.out, args.attack_end_s)
     if args.command == "diff-corpus":
         return _run_diff_corpus(args.baseline, args.current, args.out)
+    if args.command == "observe-harmonics":
+        return _run_observe_harmonics(args.manifest, args.out, args.n_harmonics)
 
     # サブコマンド未指定時はヘルプを表示して終了する（エラー扱いにはしない）。
     parser.print_help()

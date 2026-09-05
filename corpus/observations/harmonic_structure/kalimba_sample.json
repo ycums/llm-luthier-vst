@@ -1,0 +1,29 @@
+{
+  "target": "kalimba_sample",
+  "status": "missing_audio",
+  "status_detail": "音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/kalimba_sample.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）",
+  "voiced_frame_ratio": null,
+  "harmonic_amplitude_motion": {
+    "value": null,
+    "missing_reason": "音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/kalimba_sample.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+  },
+  "non_integer_partial_ratio": {
+    "value": null,
+    "missing_reason": "音源が手元に存在しない: /home/user/llm-luthier-vst/corpus/.cache/kalimba_sample.ogg（Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.）"
+  },
+  "calc_conditions": {
+    "schema_version": "1.0.0",
+    "n_harmonics": 8,
+    "harmonic_search_bins": 2,
+    "no_pitch_voiced_ratio_threshold": 0.15,
+    "min_relative_harmonic_amplitude": 0.01,
+    "f0_estimation": {
+      "name": "pyin",
+      "version": "0.11.0",
+      "fmin_hz": 60.0,
+      "fmax_hz": 1000.0,
+      "frame_length": 2048,
+      "hop_length": 256
+    }
+  }
+}

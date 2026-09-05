@@ -15,6 +15,7 @@
 | `harness/corpus_runner.py` | コーパス全体（`corpus/manifest.json`）への指標算出の一括実行（P0-11） |
 | `harness/metrics_diff.py` | `run-corpus` の出力2組（基準/今回）の機械可読な指標差分JSONの算出（P0-12b-1） |
 | `harness/metrics_diff_report.py` | `metrics_diff.py` の差分JSONを人間向けのMarkdown表（変更前/変更後/差）に整形する（P0-12b-2） |
+| `harness/harmonic_observation.py` | コーパスの倍音構造観測。`docs/06-open-questions.md` Q-001（Harmonic層の合成方式）の判断材料を出力する（P1-02） |
 
 ## フィクチャ生成（P0-04）
 
@@ -138,6 +139,35 @@ python -m harness spectrogram --target <before.wav> --candidate <after.wav> --ou
 1. 変更前・変更後のレンダ結果のうち、指標ベクトル差分が最大だった1〜2音源を選ぶ（選定ロジックは本ツールの範囲外。人間またはCIの手順が判断する）
 2. 上記コマンドで `target.png` / `candidate.png` /（任意で）`diff.png` を生成する
 3. 生成したPNGをPR本文に画像として貼り付ける（GitHubのPRエディタにドラッグ＆ドロップ、またはIssue/PRコメントの添付機能を使う）
+
+## 倍音構造観測（P1-02）
+
+`docs/06-open-questions.md` Q-001（Harmonic層を加算合成とウェーブテーブルのどちらにするか）が
+判断材料として要求する「コーパスの倍音構造の多様性」を観測する。合成方式の決定は行わない
+（決定はP1-03）。
+
+```
+python -m harness observe-harmonics --manifest corpus/manifest.json --out <dir> [--n-harmonics N]
+```
+
+- `<dir>` 直下に、音源1件につき1つのJSON（`<id>.json`、`harness/harmonic_observation.schema.json`
+  に valid）と、全件を束ねるインデックス（`index.json`）を出力する（`run-corpus` と同じ構成）
+- 観測する2項目：「倍音の振幅比が時間的にどれだけ動くか」（`harmonic_amplitude_motion`、基音に
+  対する各倍音の振幅比の変動係数の平均）と「非整数次成分の割合」（`non_integer_partial_ratio`、
+  同定できた整数次倍音が説明しないスペクトルエネルギーの割合）。定義・算出方法は
+  `harness/harmonic_observation.py` のモジュールdocstring参照
+- 倍音の同定はf0推定（`harness.metrics.estimate_f0_contour`、pYIN）に依存する。
+  `docs/06-open-questions.md` Q-011の暫定の扱いに従い、この観測のために推定方式・パラメータを
+  新たに選び直さない
+- 有声フレーム比率が閾値未満の音源（打楽器・ノイズ等、音高を持たない音源）は`status="no_pitch"`
+  として明示的に記録する。観測から除外せず、欠測（`value: null` + `missing_reason`）として扱う
+  （`docs/04-metrics.md` の欠測表現と同じ規則）
+- target音源が手元に存在しないエントリは`status="missing_audio"`として記録し、残りのエントリの
+  処理を継続する（`run-corpus` と同じ「1件の欠測・失敗が全体を止めない」規約）
+- 終了コードの意味は`run-corpus`と同じ：`0`＝欠測を含め全エントリが完走した（正常）/
+  `1`＝1件以上のエントリで観測が例外により失敗した（一部失敗）/ `2`＝マニフェスト自体が
+  読めない等、実行そのものが成立しなかった（実行不能）
+- 音源ごとのJSON（`<id>.json`）は、同一入力に対して2回実行してもビット単位で一致する（決定論）
 
 ## 音声I/Oの規則
 
