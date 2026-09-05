@@ -124,7 +124,11 @@ def test_calc_conditions_records_fft_sizes_used(fixtures) -> None:
 
 
 def test_out_of_scope_sections_are_reported_as_missing(fixtures) -> None:
-    """帯域別・軌跡指標は本Issue(#6)のスコープ外（P0-07/P0-08）であり、欠測として出力する。"""
+    """帯域別指標（P0-07）とフォルマント軌跡距離（P0-09）はスコープ外であり、欠測として出力する。
+
+    区間別指標（P0-06 #6）と軌跡指標のうちトランジェント包絡相関・f0軌跡距離（P0-08 #8）は
+    実装済みのため、ここでは検証しない（`tests/test_trajectory_metrics.py` を参照）。
+    """
     out_dir, meta = fixtures
     p = _pair_meta(meta, "a_identical")
 
@@ -134,9 +138,8 @@ def test_out_of_scope_sections_are_reported_as_missing(fixtures) -> None:
         assert band["error"]["value"] is None
         assert band["error"]["missing_reason"]
 
-    for metric in vector["trajectories"].values():
-        assert metric["value"] is None
-        assert metric["missing_reason"]
+    assert vector["trajectories"]["formant_dist"]["value"] is None
+    assert vector["trajectories"]["formant_dist"]["missing_reason"]
 
 
 def test_attack_segment_is_computed_with_default_boundary_and_no_annotation(

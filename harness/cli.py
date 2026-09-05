@@ -1,8 +1,9 @@
 """ハーネスのエントリポイント。
 
 `inspect`（WAVの中身確認）、`generate-fixtures`（既知解テスト用の合成フィクチャ生成、P0-04）、
-`metrics`（全体指標・区間別指標の算出、P0-05/P0-06）、`spectrogram`（スペクトログラム画像対の
-生成、P0-14）の各サブコマンドを提供する。帯域別・軌跡指標はP0-07以降の範囲。
+`metrics`（全体指標・区間別指標・軌跡指標の一部の算出、P0-05/P0-06/P0-08）、`spectrogram`
+（スペクトグラム画像対の生成、P0-14）の各サブコマンドを提供する。帯域別指標はP0-07、
+フォルマント軌跡距離はP0-09の範囲。
 """
 
 from __future__ import annotations
@@ -51,8 +52,8 @@ def _build_parser() -> argparse.ArgumentParser:
     metrics_parser = subparsers.add_parser(
         "metrics",
         help=(
-            "2つのWAVパスから全体指標・区間別指標を算出し、指標ベクトルJSONを標準出力に出す"
-            "（P0-05/P0-06）"
+            "2つのWAVパスから全体指標・区間別指標・軌跡指標の一部を算出し、"
+            "指標ベクトルJSONを標準出力に出す（P0-05 / P0-06 / P0-08）"
         ),
     )
     metrics_parser.add_argument("target_wav", type=Path, help="比較の基準となるWAVファイル")
