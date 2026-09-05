@@ -185,6 +185,12 @@ _SEGMENT_BOUNDARY_MISSING_REASONS = {
     "release": "リリースの区間境界（sustain_end_s）が注釈として与えられていない",
 }
 
+#: `segments` / `trajectories` のフィールド名（`build_missing_metrics_vector` が
+#: 全指標欠測のベクトルを組み立てる際に使う。docs/04-metrics.schema.json の
+#: `segment_metrics_set` / `trajectory_metrics` の必須プロパティと一致させること）。
+_SEGMENT_NAMES = ("attack", "transition", "sustain", "release")
+_TRAJECTORY_NAMES = ("transient_env_corr", "f0_dist", "formant_dist")
+
 
 def _metric_value(value: float) -> dict:
     return {"value": float(value), "missing_reason": None}
@@ -785,6 +791,48 @@ def compute_segment_metrics(
     return segments
 
 
+def _build_calc_conditions(
+    fft_sizes: Sequence[int],
+    attack_end_s: float,
+    transition_end_s: float | None,
+    sustain_end_s: float | None,
+    band_edges_hz: Sequence[float],
+) -> dict:
+    """`calc_conditions` セクションを組み立てる。音声データそのものには依存しない
+    （設定値のみから決まる）ため、実測（`compute_metrics_vector`）と欠測専用の
+    ベクトル（`build_missing_metrics_vector`）の両方から共通に呼べる。
+    """
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "fft_sizes": [int(size) for size in fft_sizes],
+        "band_edges_hz": [float(edge) for edge in band_edges_hz],
+        # 実際に使用した区間境界の実値を記録する（Issue #6 完了条件）。注釈が与えられて
+        # いない transition_end_s / sustain_end_s は None（欠測）のまま記録し、値を捏造しない。
+        "segment_boundaries_s": {
+            "attack_end_s": float(attack_end_s),
+            "transition_end_s": (
+                float(transition_end_s) if transition_end_s is not None else None
+            ),
+            "sustain_end_s": (
+                float(sustain_end_s) if sustain_end_s is not None else None
+            ),
+        },
+        # f0推定（pYIN）とフォルマント推定（STFTピーク追跡）を使用。
+        "estimation_algorithms": [
+            {"name": F0_ALGORITHM_NAME, "version": librosa.__version__},
+            {
+                "name": FORMANT_ALGORITHM_NAME,
+                "version": "1",
+                "n_formants": DEFAULT_N_FORMANTS,
+                "frame_length": DEFAULT_FORMANT_FRAME_LENGTH,
+                "hop_length": DEFAULT_FORMANT_HOP_LENGTH,
+                "fft_size": DEFAULT_FORMANT_FFT_SIZE,
+                "max_track_gap_hz": DEFAULT_FORMANT_MAX_TRACK_GAP_HZ,
+            },
+        ],
+    }
+
+
 def compute_metrics_vector(
     target_path: str | Path,
     candidate_path: str | Path,
@@ -831,38 +879,48 @@ def compute_metrics_vector(
 
     trajectories = compute_trajectory_metrics(target, candidate, target_buffer.sample_rate)
 
-    calc_conditions = {
-        "schema_version": SCHEMA_VERSION,
-        "fft_sizes": [int(size) for size in fft_sizes],
-        "band_edges_hz": [float(edge) for edge in band_edges_hz],
-        # 実際に使用した区間境界の実値を記録する（Issue #6 完了条件）。注釈が与えられて
-        # いない transition_end_s / sustain_end_s は None（欠測）のまま記録し、値を捏造しない。
-        "segment_boundaries_s": {
-            "attack_end_s": float(attack_end_s),
-            "transition_end_s": (
-                float(transition_end_s) if transition_end_s is not None else None
-            ),
-            "sustain_end_s": (
-                float(sustain_end_s) if sustain_end_s is not None else None
-            ),
-        },
-        # f0推定（pYIN）とフォルマント推定（STFTピーク追跡）を使用。
-        "estimation_algorithms": [
-            {"name": F0_ALGORITHM_NAME, "version": librosa.__version__},
-            {
-                "name": FORMANT_ALGORITHM_NAME,
-                "version": "1",
-                "n_formants": DEFAULT_N_FORMANTS,
-                "frame_length": DEFAULT_FORMANT_FRAME_LENGTH,
-                "hop_length": DEFAULT_FORMANT_HOP_LENGTH,
-                "fft_size": DEFAULT_FORMANT_FFT_SIZE,
-                "max_track_gap_hz": DEFAULT_FORMANT_MAX_TRACK_GAP_HZ,
-            },
-        ],
-    }
+    calc_conditions = _build_calc_conditions(
+        fft_sizes, attack_end_s, transition_end_s, sustain_end_s, band_edges_hz
+    )
 
     return {
         "target": target_path.name,
+        "overall": overall,
+        "segments": segments,
+        "bands": bands,
+        "trajectories": trajectories,
+        "calc_conditions": calc_conditions,
+    }
+
+
+def build_missing_metrics_vector(
+    target_name: str,
+    reason: str,
+    fft_sizes: Sequence[int] = DEFAULT_FFT_SIZES,
+    attack_end_s: float = DEFAULT_ATTACK_END_S,
+    transition_end_s: float | None = None,
+    sustain_end_s: float | None = None,
+    band_edges_hz: Sequence[float] = DEFAULT_BAND_EDGES_HZ,
+) -> dict:
+    """音声を1サンプルも読まずに、全指標が欠測の指標ベクトルを組み立てる（P0-11 #11）。
+
+    コーパス実行ランナが、音源が手元に存在しない（欠測）場合や算出そのものが失敗した
+    場合に使う。`docs/04-metrics.schema.json` は個々の指標単位の欠測しか表現しないため、
+    音源1件が丸ごと欠測であることを、全指標に同じ `reason` を詰めることで表現する。
+    """
+    overall = _missing_overall(reason)
+    segments = {name: _missing_overall(reason) for name in _SEGMENT_NAMES}
+    bands = [
+        {"lo_hz": float(lo), "hi_hz": float(hi), "error": _missing(reason)}
+        for lo, hi in itertools.pairwise(band_edges_hz)
+    ]
+    trajectories = {name: _missing(reason) for name in _TRAJECTORY_NAMES}
+    calc_conditions = _build_calc_conditions(
+        fft_sizes, attack_end_s, transition_end_s, sustain_end_s, band_edges_hz
+    )
+
+    return {
+        "target": target_name,
         "overall": overall,
         "segments": segments,
         "bands": bands,
@@ -894,6 +952,7 @@ __all__ = [
     "FORMANT_ALGORITHM_NAME",
     "SCHEMA_VERSION",
     "band_spectral_error",
+    "build_missing_metrics_vector",
     "compute_band_metrics",
     "compute_metrics_vector",
     "compute_overall_metrics",

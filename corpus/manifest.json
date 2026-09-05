@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "note_en": "Golden corpus for issue #10 / docs/04-metrics.md. Files are managed exactly as obtained (no resampling/normalization). This set must not change without an ADR (see docs/adr/0004-golden-corpus.md).",
   "diversity_methodology": "attack: attack_rise_ms <= 100 -> 'sharp', otherwise 'soft'. pitch: pitch_strength >= 0.5 -> 'yes', otherwise 'no'. harmonic_motion: centroid_motion_ratio > 0.4 -> 'dynamic', otherwise 'static'. These thresholds are a corpus-curation convention for this manifest only; they are NOT the metrics harness's own segment boundaries or thresholds (those remain open, see docs/06-open-questions.md Q-002/Q-004).",
   "entries": [
@@ -31,6 +31,7 @@
       "bundled": true,
       "bundled_path": "corpus/audio/sine_440hz.ogg",
       "retrieval": null,
+      "candidate_path": "corpus/audio/sine_440hz.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -73,6 +74,7 @@
       "bundled": true,
       "bundled_path": "corpus/audio/white_noise.ogg",
       "retrieval": null,
+      "candidate_path": "corpus/audio/white_noise.ogg",
       "diversity": {
         "pitch": "no",
         "attack": "sharp",
@@ -115,6 +117,7 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "candidate_path": "corpus/.cache/violin_pizzicato.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -157,6 +160,7 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "candidate_path": "corpus/.cache/violin_vibrato.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "soft",
@@ -199,6 +203,7 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "candidate_path": "corpus/.cache/violin_tuning.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "soft",
@@ -241,6 +246,7 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "candidate_path": "corpus/.cache/crash_cymbal.ogg",
       "diversity": {
         "pitch": "no",
         "attack": "sharp",
@@ -283,6 +289,7 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "candidate_path": "corpus/.cache/snare_drum_rim.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -325,6 +332,7 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "candidate_path": "corpus/.cache/rain_light.ogg",
       "diversity": {
         "pitch": "no",
         "attack": "soft",
@@ -368,6 +376,7 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "candidate_path": "corpus/.cache/tibetan_singing_bowl.flac",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -410,6 +419,7 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
+      "candidate_path": "corpus/.cache/kalimba_sample.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -452,6 +462,7 @@
       "bundled": true,
       "bundled_path": "corpus/audio/spoken_hello.wav",
       "retrieval": null,
+      "candidate_path": "corpus/audio/spoken_hello.wav",
       "diversity": {
         "pitch": "yes",
         "attack": "soft",
@@ -466,5 +477,6 @@
       },
       "known_limitations": null
     }
-  ]
+  ],
+  "candidate_path_seam_note_en": "candidate_path (added in schema_version 1.1.0, Issue #11): the WAV/OGG path to compare each entry's target audio against. Phase 0 has no renderer yet (see docs/00-vision.md phase 1 and Issue #15's 'known decisions' section), so this is a seam: it is set to the same resolved path as the entry's own target audio (self-comparison, all diffs are 0 by construction). Once the engine renderer exists in Phase 1, this field will be replaced with the renderer's output path. harness/corpus_runner.py reads this field literally and does not know or care how it was produced."
 }
