@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ycums/llm-luthier-vst/blob/main/docs/04-metrics.schema.json",
+  "title": "Metrics Vector",
+  "description": "docs/04-metrics.md が定義する指標ベクトルの出力形式。スカラー1個には潰さず、全体 / 区間別 / 帯域別 / 軌跡の各指標を構造化データとして保持する。総合スコア・重み付け・単一の合否フラグに相当するフィールドは意図的に存在しない（Q-005 は未解決のまま保護する）。バージョニングは docs/03-preset-format.md と同じセマンティックバージョニングに従う：フィールド追加は minor、削除・意味変更・必須化は major、説明の修正のみは patch。バージョンは calc_conditions.schema_version に記録する。",
+  "type": "object",
+  "required": ["target", "overall", "segments", "bands", "trajectories", "calc_conditions"],
+  "additionalProperties": false,
+  "properties": {
+    "target": {
+      "type": "string",
+      "minLength": 1,
+      "description": "レンダ対象になったゴールデン音源の識別子（ファイル名等）。"
+    },
+    "overall": { "$ref": "#/$defs/overall_metrics" },
+    "segments": { "$ref": "#/$defs/segment_metrics_set" },
+    "bands": { "$ref": "#/$defs/band_array" },
+    "trajectories": { "$ref": "#/$defs/trajectory_metrics" },
+    "calc_conditions": { "$ref": "#/$defs/calc_conditions" }
+  },
+  "$defs": {
+    "metric_value": {
+      "description": "指標1件の値。欠測時は value=null かつ missing_reason に理由を書く。両方が同時に埋まる/空になることは許容しない。",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "value": { "type": "number" },
+            "missing_reason": { "type": "null" }
+          },
+          "required": ["value", "missing_reason"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "value": { "type": "null" },
+            "missing_reason": { "type": "string", "minLength": 1 }
+          },
+          "required": ["value", "missing_reason"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "overall_metrics": {
+      "description": "全体指標。区間別指標も同じ3指標の組を使う。",
+      "type": "object",
+      "properties": {
+        "msstft": { "$ref": "#/$defs/metric_value" },
+        "mfcc": { "$ref": "#/$defs/metric_value" },
+        "loudness_diff_db": { "$ref": "#/$defs/metric_value" }
+      },
+      "required": ["msstft", "mfcc", "loudness_diff_db"],
+      "additionalProperties": false
+    },
+    "segment_metrics_set": {
+      "description": "区間別指標。区間境界そのものは calc_conditions.segment_boundaries_s に記録する。",
+      "type": "object",
+      "properties": {
+        "attack": { "$ref": "#/$defs/overall_metrics" },
+        "transition": { "$ref": "#/$defs/overall_metrics" },
+        "sustain": { "$ref": "#/$defs/overall_metrics" },
+        "release": { "$ref": "#/$defs/overall_metrics" }
+      },
+      "required": ["attack", "transition", "sustain", "release"],
+      "additionalProperties": false
+    },
+    "band_array": {
+      "description": "帯域別指標。帯域端は本配列自体にも保持し、calc_conditions.band_edges_hz にも通し番号で記録する。",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "lo_hz": { "type": "number", "minimum": 0 },
+          "hi_hz": { "type": "number", "minimum": 0 },
+          "error": { "$ref": "#/$defs/metric_value" }
+        },
+        "required": ["lo_hz", "hi_hz", "error"],
+        "additionalProperties": false
+      }
+    },
+    "trajectory_metrics": {
+      "type": "object",
+      "properties": {
+        "transient_env_corr": { "$ref": "#/$defs/metric_value" },
+        "f0_dist": { "$ref": "#/$defs/metric_value" },
+        "formant_dist": { "$ref": "#/$defs/metric_value" }
+      },
+      "required": ["transient_env_corr", "f0_dist", "formant_dist"],
+      "additionalProperties": false
+    },
+    "calc_conditions": {
+      "description": "この指標ベクトルを算出したときの設定条件。ここに記録された値そのものの妥当性はフェーズ0の完了条件に含めない（観測してから決める。docs/06-open-questions.md の Q-004 / Q-011 参照）。",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "このJSON Schema自体のバージョン（セマンティックバージョニング）。"
+        },
+        "fft_sizes": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "マルチスケールスペクトル距離の算出に使ったFFTサイズの集合。"
+        },
+        "band_edges_hz": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 },
+          "minItems": 2,
+          "description": "帯域別指標の帯域端（Hz、昇順）。分割方式（等間隔/メル/バーク、Q-004）に関わらずこの形式で記録する。"
+        },
+        "segment_boundaries_s": {
+          "description": "区間境界。ノートオンを0秒とする。attackは0〜attack_end_s、以降transition_end_sまでtransition、sustain_end_sまでsustain、それ以降がrelease。",
+          "type": "object",
+          "properties": {
+            "attack_end_s": { "type": "number", "minimum": 0 },
+            "transition_end_s": { "type": "number", "minimum": 0 },
+            "sustain_end_s": { "type": "number", "minimum": 0 }
+          },
+          "required": ["attack_end_s", "transition_end_s", "sustain_end_s"],
+          "additionalProperties": false
+        },
+        "estimation_algorithms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "version": { "type": "string", "minLength": 1 }
+            },
+            "required": ["name", "version"],
+            "additionalProperties": false
+          },
+          "description": "f0推定・フォルマント推定など、算出に使った推定アルゴリズムの名前とバージョン（Q-010 / Q-011 参照）。"
+        }
+      },
+      "required": [
+        "schema_version",
+        "fft_sizes",
+        "band_edges_hz",
+        "segment_boundaries_s",
+        "estimation_algorithms"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
