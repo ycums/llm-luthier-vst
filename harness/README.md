@@ -10,7 +10,7 @@
 | `harness/audio_io.py` | 決定論的な音声I/O層。WAVの読み込み、ステレオ→モノ変換、サンプルレート一致チェック |
 | `harness/cli.py` | エントリポイント（`llm-luthier-harness` / `python -m harness`） |
 | `harness/fixture_gen.py` | 既知解テスト用の合成フィクチャ生成器（差が既知の音源ペアを決定論的に生成） |
-| `harness/metrics.py` | 全体指標（マルチスケールスペクトル距離 / MFCC距離 / ラウドネス差）の算出（P0-05） |
+| `harness/metrics.py` | 全体指標（マルチスケールスペクトル距離 / MFCC距離 / ラウドネス差、P0-05）と軌跡指標の一部（トランジェント包絡相関 / f0軌跡距離、P0-08）の算出 |
 | `harness/spectrogram.py` | スペクトログラム画像対の生成器（PRに添付するエビデンス。図示のみで指標算出はしない） |
 
 ## フィクチャ生成（P0-04）
@@ -26,19 +26,22 @@ python -m harness generate-fixtures --seed 0 --out <dir>
 - 同一 `--seed` で2回実行すると全WAVとメタデータがビット単位で一致する（決定論）
 - 生成物はバージョン管理に含めない。`.venv` や一時ディレクトリに生成して使う
 
-## 全体指標の算出（P0-05）
+## 全体指標・軌跡指標の算出（P0-05 / P0-08）
 
 2つのWAVパスから `docs/04-metrics.md` の全体指標（マルチスケールスペクトル距離 / MFCC距離 /
-ラウドネス差）を算出し、`docs/04-metrics.schema.json` に valid な指標ベクトルJSONを標準出力に出す。
+ラウドネス差）と、軌跡指標のうちトランジェント包絡相関・f0軌跡距離を算出し、
+`docs/04-metrics.schema.json` に valid な指標ベクトルJSONを標準出力に出す。
 
 ```
 python -m harness metrics <target.wav> <candidate.wav>
 ```
 
-- 区間別・帯域別・軌跡の各指標（P0-06〜P0-08）は本コマンドのスコープ外であり、欠測
-  （`value: null` + `missing_reason`）として出力する
-- 各指標の定義・ラウドネス差の符号の向き・使用したFFTサイズ集合は `harness/metrics.py` の
-  docstringに書く（実装と規則の説明を分離すると乖離するため）
+- 区間別・帯域別の各指標（P0-06 / P0-07）と、軌跡指標のうちフォルマント軌跡距離（P0-09）は
+  本コマンドのスコープ外であり、欠測（`value: null` + `missing_reason`）として出力する
+- f0軌跡距離は、target・candidateの双方が有声なフレームがない場合（無音・ノイズのみの入力等）
+  も欠測になる。でたらめな値は返さない
+- 各指標の定義・ラウドネス差の符号の向き・使用したFFTサイズ集合・f0推定アルゴリズムは
+  `harness/metrics.py` のdocstringに書く（実装と規則の説明を分離すると乖離するため）
 - 同一入力に対して2回実行した出力JSONはビット単位で一致する（決定論）
 
 ## スペクトログラム画像の生成（P0-14）
