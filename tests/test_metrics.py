@@ -20,7 +20,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from harness.fixture_gen import GAIN_DB, generate_all
+from harness.fixture_gen import GAIN_DB, LOWPASS_CUTOFF_HZ, generate_all
 from harness.metrics import (
     DEFAULT_FFT_SIZES,
     compute_metrics_vector,
@@ -114,7 +114,11 @@ def test_calc_conditions_records_fft_sizes_used(fixtures) -> None:
 
 
 def test_out_of_scope_sections_are_reported_as_missing(fixtures) -> None:
-    """区間別・帯域別・軌跡指標は本Issue(#5)のスコープ外であり、欠測として出力する。"""
+    """区間別・軌跡指標は本Issue(#7)のスコープ外であり、欠測として出力する。
+
+    帯域別指標は本Issue(#7)で実装したため、ここでは検証しない
+    （test_compute_metrics_vector_with_band_edges_produces_actual_errors 等を参照）。
+    """
     out_dir, meta = fixtures
     p = _pair_meta(meta, "a_identical")
 
@@ -125,13 +129,121 @@ def test_out_of_scope_sections_are_reported_as_missing(fixtures) -> None:
             assert metric["value"] is None
             assert metric["missing_reason"]
 
-    for band in vector["bands"]:
-        assert band["error"]["value"] is None
-        assert band["error"]["missing_reason"]
-
     for metric in vector["trajectories"].values():
         assert metric["value"] is None
         assert metric["missing_reason"]
+
+
+def test_compute_metrics_vector_with_band_edges_produces_actual_errors(fixtures) -> None:
+    """帯域端リスト（設定データ）を渡すと、各帯域の誤差が実際の値として出力される。
+
+    各要素は実際に使用した lo_hz / hi_hz を実値で含む（docs/04-metrics.md の例示形式）。
+    """
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "a_identical")
+    band_edges_hz = [0.0, 1000.0, 4000.0, 8000.0]
+
+    vector = compute_metrics_vector(
+        out_dir / p["target"], out_dir / p["candidate"], band_edges_hz=band_edges_hz
+    )
+
+    assert len(vector["bands"]) == len(band_edges_hz) - 1
+    for band, lo, hi in zip(vector["bands"], band_edges_hz[:-1], band_edges_hz[1:]):
+        assert band["lo_hz"] == pytest.approx(lo)
+        assert band["hi_hz"] == pytest.approx(hi)
+        assert band["error"]["value"] == pytest.approx(0.0, abs=1e-9)
+        assert band["error"]["missing_reason"] is None
+    assert vector["calc_conditions"]["band_edges_hz"] == band_edges_hz
+
+
+def test_single_full_band_error_matches_overall_msstft(fixtures) -> None:
+    """帯域を1つ（0〜ナイキスト）に設定したときの値は、対応する全体指標(msstft)の値と一致する。
+
+    許容誤差は 1e-9（同一の算出式をビン制限なしで通した場合と数値的に一致するはずのため）。
+    実際のサンプルレートを知らなくても、ナイキストを確実に超える上限を与えれば全ビンを含む
+    （帯域端のHz値は実サンプルレートの物理的なナイキストで自然にクリップされる）。
+    """
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "d_noise")
+    band_edges_hz = [0.0, 1.0e9]
+
+    vector = compute_metrics_vector(
+        out_dir / p["target"], out_dir / p["candidate"], band_edges_hz=band_edges_hz
+    )
+
+    assert len(vector["bands"]) == 1
+    assert vector["bands"][0]["error"]["value"] == pytest.approx(
+        vector["overall"]["msstft"]["value"], abs=1e-9
+    )
+
+
+def test_lowpass_pair_stopband_error_is_larger_than_passband_error(fixtures) -> None:
+    """既知のカットオフでローパス済みのフィクスチャに対し、遮断帯域の誤差が通過帯域の誤差より大きい。"""
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "c_lowpass")
+    assert p["known"]["cutoff_hz"] == LOWPASS_CUTOFF_HZ  # 2000Hz。以下の帯域端はこれを跨ぐ
+
+    vector = compute_metrics_vector(
+        out_dir / p["target"],
+        out_dir / p["candidate"],
+        band_edges_hz=[0.0, 800.0, 2000.0, 5000.0, 8000.0],
+    )
+
+    passband_error = vector["bands"][0]["error"]["value"]  # [0, 800) Hz: 通過帯域
+    stopband_error = vector["bands"][-1]["error"]["value"]  # [5000, 8000] Hz: 遮断帯域
+
+    assert stopband_error > passband_error
+
+
+def test_band_edges_configurable_as_equal_mel_or_bark_without_code_change(fixtures) -> None:
+    """等間隔・メル・バークいずれの帯域端リストも、実装を変更せず設定（引数）だけで指定できる。
+
+    - equal: 0〜ナイキストの線形等間隔
+    - mel: librosa.mel_frequencies によるメル尺度上の等間隔
+    - bark: Zwicker & Terhardt の24臨界帯域表（Hz、上限値）から実サンプルレートの
+      ナイキスト(8000Hz)以下の部分を切り出した既知の値（公表値であり推測ではない）
+    """
+    import librosa
+    import numpy as np
+
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "a_identical")
+    nyquist = 8000.0
+    n_bands = 4
+
+    equal_edges = [float(e) for e in np.linspace(0.0, nyquist, n_bands + 1)]
+    mel_edges = [
+        float(e) for e in librosa.mel_frequencies(n_mels=n_bands + 1, fmin=0.0, fmax=nyquist)
+    ]
+    bark_table_hz = [
+        100, 200, 300, 400, 510, 630, 770, 920, 1080, 1270,
+        1480, 1720, 2000, 2320, 2700, 3150, 3700, 4400, 5300, 6400, 7700,
+    ]
+    bark_edges = [0.0] + [float(e) for e in bark_table_hz if e <= nyquist]
+
+    for edges in (equal_edges, mel_edges, bark_edges):
+        vector = compute_metrics_vector(
+            out_dir / p["target"], out_dir / p["candidate"], band_edges_hz=edges
+        )
+        assert len(vector["bands"]) == len(edges) - 1
+        for metric in vector["bands"]:
+            assert metric["error"]["missing_reason"] is None
+
+
+def test_default_band_edges_hz_is_loaded_from_a_bundled_config_file() -> None:
+    """既定の帯域端リストは設定ファイルとして1つ同梱され、暫定でありQ-004の解決対象だと明記されている。"""
+    import json
+
+    from harness.metrics import DEFAULT_BAND_EDGES_HZ
+
+    config_path = (
+        Path(__file__).resolve().parent.parent / "harness" / "band_edges_default.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert tuple(float(e) for e in config["band_edges_hz"]) == DEFAULT_BAND_EDGES_HZ
+    assert "Q-004" in config["$comment"]
+    assert "暫定" in config["$comment"]
 
 
 def test_compute_metrics_vector_is_deterministic_in_process(fixtures) -> None:
