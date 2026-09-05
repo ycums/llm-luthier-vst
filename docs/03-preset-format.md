@@ -61,6 +61,8 @@ JSON。理由：
 }
 ```
 
+構造は `docs/03-preset-format.schema.json`（JSON Schema）で機械可読に定義する。バージョニングは本ドキュメント「バージョニング」と同じセマンティックバージョニングに従い、現在のバージョンは各プリセットの `format_version` に記録する。未知のフィールドの不許可（下記）は同スキーマの `additionalProperties: false` として表現している。
+
 ## 必須の規約
 
 - `format_version` と `engine_spec_version` は必須。**両方**を持つ理由は、形式は変えずにエンジン能力だけが増えるケースがあるため
