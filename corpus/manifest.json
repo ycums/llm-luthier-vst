@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "note_en": "Golden corpus for issue #10 / docs/04-metrics.md. Files are managed exactly as obtained (no resampling/normalization). This set must not change without an ADR (see docs/adr/0003-golden-corpus.md).",
+  "note_en": "Golden corpus for issue #10 / docs/04-metrics.md. Files are managed exactly as obtained (no resampling/normalization). This set must not change without an ADR (see docs/adr/0004-golden-corpus.md).",
   "diversity_methodology": "attack: attack_rise_ms <= 100 -> 'sharp', otherwise 'soft'. pitch: pitch_strength >= 0.5 -> 'yes', otherwise 'no'. harmonic_motion: centroid_motion_ratio > 0.4 -> 'dynamic', otherwise 'static'. These thresholds are a corpus-curation convention for this manifest only; they are NOT the metrics harness's own segment boundaries or thresholds (those remain open, see docs/06-open-questions.md Q-002/Q-004).",
   "entries": [
     {
@@ -253,7 +253,7 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": "客観測定によるアタック立ち上がりは約76msで、シンバル単体の打撃としては比較的緩やか。録音にクレッシェンド気味の導入が含まれている可能性がある（詳細は docs/adr/0003-golden-corpus.md の測定方法の節を参照）。"
+      "known_limitations": "客観測定によるアタック立ち上がりは約76msで、シンバル単体の打撃としては比較的緩やか。録音にクレッシェンド気味の導入が含まれている可能性がある（詳細は docs/adr/0004-golden-corpus.md の測定方法の節を参照）。"
     },
     {
       "id": "snare_drum_rim",
