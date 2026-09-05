@@ -1,8 +1,8 @@
 """ハーネスのエントリポイント。
 
 `inspect`（WAVの中身確認）、`generate-fixtures`（既知解テスト用の合成フィクチャ生成、P0-04）、
-`metrics`（全体指標の算出、P0-05）、`spectrogram`（スペクトログラム画像対の生成、P0-14）の
-各サブコマンドを提供する。区間別・帯域別・軌跡指標はP0-06以降の範囲。
+`metrics`（全体指標・区間別指標の算出、P0-05/P0-06）、`spectrogram`（スペクトログラム画像対の
+生成、P0-14）の各サブコマンドを提供する。帯域別・軌跡指標はP0-07以降の範囲。
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from harness.audio_io import read_wav
 from harness.fixture_gen import generate_all
-from harness.metrics import compute_metrics_vector
+from harness.metrics import DEFAULT_ATTACK_END_S, compute_metrics_vector
 from harness.spectrogram import render_pair
 
 
@@ -50,10 +50,40 @@ def _build_parser() -> argparse.ArgumentParser:
 
     metrics_parser = subparsers.add_parser(
         "metrics",
-        help="2つのWAVパスから全体指標を算出し、指標ベクトルJSONを標準出力に出す（P0-05）",
+        help=(
+            "2つのWAVパスから全体指標・区間別指標を算出し、指標ベクトルJSONを標準出力に出す"
+            "（P0-05/P0-06）"
+        ),
     )
     metrics_parser.add_argument("target_wav", type=Path, help="比較の基準となるWAVファイル")
     metrics_parser.add_argument("candidate_wav", type=Path, help="比較対象のWAVファイル")
+    metrics_parser.add_argument(
+        "--attack-end-s",
+        type=float,
+        default=DEFAULT_ATTACK_END_S,
+        help=(
+            "アタック区間の終端（秒、ノートオン=0秒）。既定値は docs/04-metrics.md が"
+            "明記する仮の値（20ms＝0.02s）。妥当性は docs/06-open-questions.md の Q-009 参照"
+        ),
+    )
+    metrics_parser.add_argument(
+        "--transition-end-s",
+        type=float,
+        default=None,
+        help=(
+            "遷移部区間の終端（秒）。設定またはマニフェストの注釈として音源ごとに与える。"
+            "指定しない場合、遷移部・定常部・リリースは欠測として出力される"
+        ),
+    )
+    metrics_parser.add_argument(
+        "--sustain-end-s",
+        type=float,
+        default=None,
+        help=(
+            "定常部区間の終端（秒）。設定またはマニフェストの注釈として音源ごとに与える。"
+            "指定しない場合、定常部・リリースは欠測として出力される"
+        ),
+    )
 
     spectrogram_parser = subparsers.add_parser(
         "spectrogram",
@@ -119,8 +149,20 @@ def _run_fixtures(out_dir: Path, seed: int) -> int:
     return 0
 
 
-def _run_metrics(target_wav: Path, candidate_wav: Path) -> int:
-    vector = compute_metrics_vector(target_wav, candidate_wav)
+def _run_metrics(
+    target_wav: Path,
+    candidate_wav: Path,
+    attack_end_s: float,
+    transition_end_s: float | None,
+    sustain_end_s: float | None,
+) -> int:
+    vector = compute_metrics_vector(
+        target_wav,
+        candidate_wav,
+        attack_end_s=attack_end_s,
+        transition_end_s=transition_end_s,
+        sustain_end_s=sustain_end_s,
+    )
     print(json.dumps(vector, ensure_ascii=False, indent=2))
     return 0
 
@@ -154,7 +196,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "generate-fixtures":
         return _run_fixtures(args.out, args.seed)
     if args.command == "metrics":
-        return _run_metrics(args.target_wav, args.candidate_wav)
+        return _run_metrics(
+            args.target_wav,
+            args.candidate_wav,
+            args.attack_end_s,
+            args.transition_end_s,
+            args.sustain_end_s,
+        )
     if args.command == "spectrogram":
         return _run_spectrogram(args)
 

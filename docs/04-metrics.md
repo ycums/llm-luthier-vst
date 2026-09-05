@@ -26,14 +26,23 @@
 
 ### 区間別指標
 
-時間軸を分割して個別に出す。アタック部の誤差が定常部に埋もれるのを防ぐため。
+時間軸を分割して個別に出す。アタック部の誤差が定常部に埋もれるのを防ぐため。全体指標と
+同じ3指標（マルチスケールスペクトル距離／MFCC距離／ラウドネス差）を、区間ごとに切り出した
+波形に対して算出する。
 
 | 区間 | 目的 |
 |---|---|
-| アタック（0〜約20ms） | トランジェント層の妥当性 |
+| アタック（既定 0〜20ms、**仮の値**） | トランジェント層の妥当性 |
 | 遷移部 | ピッチ変化区間。グライド表現の妥当性 |
 | 定常部 | ハーモニック・フォルマント層の妥当性 |
 | リリース | 減衰特性 |
+
+区間境界は実装に埋め込まず、外部入力（設定またはマニフェストの注釈）として与える。
+アタックの終端（20ms）だけは既定値を持つが、これは**仮の値**であり妥当性は未解決
+（`docs/06-open-questions.md` Q-009）。遷移部・定常部・リリースの境界には既定値を置かない。
+音源ごとの注釈が与えられていない場合、該当区間は欠測（`value: null` + `missing_reason`）として
+出力する。エラーにはしない。使用した境界の実値は `calc_conditions.segment_boundaries_s` に
+記録する。
 
 ### 帯域別指標
 
@@ -78,14 +87,14 @@ JSON。CIとフィッティングループの両方が機械可読に扱える�
       "loudness_diff_db": { "value": 0.0, "missing_reason": null }
     },
     "transition": {
-      "msstft": { "value": 0.0, "missing_reason": null },
-      "mfcc": { "value": 0.0, "missing_reason": null },
-      "loudness_diff_db": { "value": 0.0, "missing_reason": null }
+      "msstft": { "value": null, "missing_reason": "遷移部の区間境界（transition_end_s）が注釈として与えられていない" },
+      "mfcc": { "value": null, "missing_reason": "遷移部の区間境界（transition_end_s）が注釈として与えられていない" },
+      "loudness_diff_db": { "value": null, "missing_reason": "遷移部の区間境界（transition_end_s）が注釈として与えられていない" }
     },
     "sustain": {
-      "msstft": { "value": 0.0, "missing_reason": null },
-      "mfcc": { "value": 0.0, "missing_reason": null },
-      "loudness_diff_db": { "value": 0.0, "missing_reason": null }
+      "msstft": { "value": null, "missing_reason": "定常部の区間境界（transition_end_s / sustain_end_s）が注釈として与えられていない" },
+      "mfcc": { "value": null, "missing_reason": "定常部の区間境界（transition_end_s / sustain_end_s）が注釈として与えられていない" },
+      "loudness_diff_db": { "value": null, "missing_reason": "定常部の区間境界（transition_end_s / sustain_end_s）が注釈として与えられていない" }
     },
     "release": {
       "msstft": { "value": 0.0, "missing_reason": null },
@@ -102,10 +111,10 @@ JSON。CIとフィッティングループの両方が機械可読に扱える�
     "formant_dist": { "value": 0.0, "missing_reason": null }
   },
   "calc_conditions": {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "fft_sizes": [512, 2048, 8192],
     "band_edges_hz": [0, 200, 800, 2000, 5000, 20000],
-    "segment_boundaries_s": { "attack_end_s": 0.02, "transition_end_s": 0.08, "sustain_end_s": 0.45 },
+    "segment_boundaries_s": { "attack_end_s": 0.02, "transition_end_s": null, "sustain_end_s": 0.45 },
     "estimation_algorithms": [ { "name": "yin", "version": "n/a" } ]
   }
 }

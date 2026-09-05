@@ -1,14 +1,23 @@
-"""全体指標の実装（P0-05 #5）: マルチスケールスペクトル距離 / MFCC距離 / ラウドネス差。
+"""全体指標（P0-05 #5）と区間別指標（P0-06 #6）の実装。
 
-`docs/04-metrics.md` の「全体指標」を算出し、`docs/04-metrics.schema.json` に valid な
-指標ベクトル全体（overall / segments / bands / trajectories / calc_conditions）を組み立てる。
+`docs/04-metrics.md` の「全体指標」「区間別指標」を算出し、`docs/04-metrics.schema.json` に
+valid な指標ベクトル全体（overall / segments / bands / trajectories / calc_conditions）を
+組み立てる。区間別指標は全体指標と同じ3指標（msstft / mfcc / loudness_diff_db）を、区間境界で
+切り出した部分波形に対して算出したものである。
 
-区間別（P0-06 #6）・帯域別（P0-07 #7）・軌跡（P0-08 #8）の各指標は本Issueのスコープ外であり、
-それぞれ欠測（`value: null` + `missing_reason`）として出力する。calc_conditions に記録する
-帯域端・区間境界の既定値は、それらの指標が実装されるまでの設定として外出ししてあるのみで、
-値の妥当性はここでは問わない（`docs/04-metrics.md` 末尾「未確定」、Q-004 / Q-009 参照）。
-estimation_algorithms も同じ理由で「未使用」を表す `none` を記録する（f0・フォルマント推定は
-P0-08 / P0-09 のスコープ）。
+帯域別（P0-07 #7）・軌跡（P0-08 #8）の各指標は本Issueのスコープ外であり、それぞれ欠測
+（`value: null` + `missing_reason`）として出力する。estimation_algorithms も同じ理由で
+「未使用」を表す `none` を記録する（f0・フォルマント推定は P0-08 / P0-09 のスコープ）。
+
+## 区間境界は外部入力である（Issue #6 完了条件）
+
+区間境界（`attack_end_s` / `transition_end_s` / `sustain_end_s`）を実装に埋め込まない。
+`DEFAULT_ATTACK_END_S`（0.02s = 20ms）だけが既定値を持つ。これは `docs/04-metrics.md` に
+明記されているとおり**仮の値**であり、妥当性は未解決（`docs/06-open-questions.md` Q-009）。
+遷移部・定常部・リリースの境界（`transition_end_s` / `sustain_end_s`）には既定値を置かない。
+呼び出し側（設定またはマニフェストの注釈）から与えられなければ、該当する区間は欠測
+（理由付き）として出力する。エラーで落とさない。これにより、境界注釈を持たない音源も
+そのまま処理できる。
 
 ## ラウドネス差の定義と符号
 
@@ -17,7 +26,8 @@ P0-08 / P0-09 のスコープ）。
 正の値は candidate の方が target よりラウドネスが大きいことを意味する（target を基準にする）。
 ここでのラウドネスはRMSベースの近似であり、知覚的ラウドネス（ITU-R BS.1770等の心理音響重み付け）
 の実装は本Issueのスコープ外（docs/04-metrics.md に定義がない）。ゲイン差の切り分け用途には
-RMSで十分である。
+RMSで十分である。RMSが厳密に0になる区間（例：アタック区間の境界がオンセットより手前にあり、
+candidate側がまだ無音の場合）で `log10(0)` に発散しないよう、両辺に微小値を加えてから比を取る。
 
 ## マルチスケールスペクトル距離（msstft）
 
@@ -25,6 +35,9 @@ RMSで十分である。
 スペクトログラムを計算し、線形振幅の平均絶対誤差と対数振幅の平均絶対誤差の和をスケールごとに
 求め、スケール間で平均する（Engel et al. 2020, DDSP のマルチスケールスペクトルロスに準拠した
 設計。時間分解能と周波数分解能の両方を見るという `docs/04-metrics.md` の目的に対応する）。
+区間別指標として短い部分波形に適用する場合、FFTサイズが区間長を超えることがあるが、
+`librosa.stft` は既定でゼロパディングするためエラーにはならない（短い区間ほど周波数分解能は
+実質的に低下する。これは区間別指標の限界として受け入れる）。
 
 ## MFCC距離
 
@@ -34,6 +47,7 @@ RMSで十分である。
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Sequence
 
@@ -56,22 +70,32 @@ _LOG_EPS = 1e-8
 #: MFCCの次数。
 DEFAULT_N_MFCC = 13
 
-#: 帯域別・区間別・軌跡の各指標（P0-06/07/08、本Issueのスコープ外）用の既定設定。
-#: 値そのものの妥当性は問わない（docs/04-metrics.md「未確定」節、Q-004/Q-009参照）。
+#: 帯域別指標（P0-07 #7、本Issueのスコープ外）用の既定設定。
+#: 値そのものの妥当性は問わない（docs/04-metrics.md「未確定」節、Q-004参照）。
 DEFAULT_BAND_EDGES_HZ: tuple[float, ...] = (0, 200, 800, 2000, 5000, 20000)
-DEFAULT_SEGMENT_BOUNDARIES_S: dict = {
-    "attack_end_s": 0.02,
-    "transition_end_s": 0.08,
-    "sustain_end_s": 0.45,
-}
+
+#: アタック区間の既定境界（秒）。ノートオンを0秒として [0, DEFAULT_ATTACK_END_S) をアタックとする。
+#: docs/04-metrics.md に明記されているとおり**仮の値**（20ms）であり、妥当性は
+#: docs/06-open-questions.md の Q-009 として未解決のまま。遷移部・定常部・リリースの境界には
+#: これに類する既定値を置かない（呼び出し側が注釈として与えなければ欠測になる）。
+DEFAULT_ATTACK_END_S: float = 0.02
+
+#: RMSがちょうど0の区間（無音）でも log10 が発散しないようにするための下駄。
+_LOUDNESS_RMS_EPS = 1e-12
 
 #: 出力する指標ベクトルのスキーマバージョン（docs/04-metrics.schema.json に合わせる）。
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "2.0.0"
 
 _NOT_IMPLEMENTED_REASONS = {
-    "segments": "区間別指標は本Issue（P0-05 #5）のスコープ外（P0-06 #6 で実装予定）",
-    "bands": "帯域別指標は本Issue（P0-05 #5）のスコープ外（P0-07 #7 で実装予定）",
-    "trajectories": "軌跡指標は本Issue（P0-05 #5）のスコープ外（P0-08 #8 で実装予定）",
+    "bands": "帯域別指標は本Issue（P0-06 #6）のスコープ外（P0-07 #7 で実装予定）",
+    "trajectories": "軌跡指標は本Issue（P0-06 #6）のスコープ外（P0-08 #8 で実装予定）",
+}
+
+#: 区間境界が注釈として与えられていない場合の欠測理由（segment名ごと）。
+_SEGMENT_BOUNDARY_MISSING_REASONS = {
+    "transition": "遷移部の区間境界（transition_end_s）が注釈として与えられていない",
+    "sustain": "定常部の区間境界（transition_end_s / sustain_end_s）が注釈として与えられていない",
+    "release": "リリースの区間境界（sustain_end_s）が注釈として与えられていない",
 }
 
 
@@ -87,11 +111,17 @@ def loudness_diff_db(target: np.ndarray, candidate: np.ndarray) -> float:
     """RMSベースのラウドネス差（dB）を返す。
 
     `20*log10(rms(candidate)/rms(target))`。正なら candidate の方が大きい
-    （モジュールdocstring「ラウドネス差の定義と符号」参照）。
+    （モジュールdocstring「ラウドネス差の定義と符号」参照）。RMSが厳密に0になる場合
+    （区間別指標で、注目区間がまだ無音であるケース等）に log10(0) へ発散しないよう、
+    両辺に `_LOUDNESS_RMS_EPS` を加えてから比を取る。
     """
     rms_target = float(np.sqrt(np.mean(np.square(target))))
     rms_candidate = float(np.sqrt(np.mean(np.square(candidate))))
-    return 20.0 * float(np.log10(rms_candidate / rms_target))
+    return 20.0 * float(
+        np.log10(
+            (rms_candidate + _LOUDNESS_RMS_EPS) / (rms_target + _LOUDNESS_RMS_EPS)
+        )
+    )
 
 
 def multiscale_spectral_distance(
@@ -102,14 +132,24 @@ def multiscale_spectral_distance(
     """複数のFFTサイズで振幅スペクトルの距離を測り、スケール間で平均する。
 
     各スケールでの距離 = 線形振幅の平均絶対誤差 + 対数振幅の平均絶対誤差。
+
+    区間別指標として短い部分波形を渡す場合、`fft_size` が波形長を超えることがある
+    （モジュールdocstring参照）。`librosa` がそれを警告するが、ゼロパディングで処理は継続する
+    ため、既知の想定内動作としてここでは黙らせる。
     """
     scale_distances = []
     for fft_size in fft_sizes:
         hop_length = max(1, fft_size // 4)
-        mag_target = np.abs(librosa.stft(target, n_fft=fft_size, hop_length=hop_length))
-        mag_candidate = np.abs(
-            librosa.stft(candidate, n_fft=fft_size, hop_length=hop_length)
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message=r"n_fft=\d+ is too large for input signal.*"
+            )
+            mag_target = np.abs(
+                librosa.stft(target, n_fft=fft_size, hop_length=hop_length)
+            )
+            mag_candidate = np.abs(
+                librosa.stft(candidate, n_fft=fft_size, hop_length=hop_length)
+            )
         n_frames = min(mag_target.shape[1], mag_candidate.shape[1])
         mag_target = mag_target[:, :n_frames]
         mag_candidate = mag_candidate[:, :n_frames]
@@ -133,9 +173,17 @@ def mfcc_distance(
     sample_rate: int,
     n_mfcc: int = DEFAULT_N_MFCC,
 ) -> float:
-    """MFCC系列のフレームごとユークリッド距離を、フレーム間で平均する。"""
-    mfcc_target = librosa.feature.mfcc(y=target, sr=sample_rate, n_mfcc=n_mfcc)
-    mfcc_candidate = librosa.feature.mfcc(y=candidate, sr=sample_rate, n_mfcc=n_mfcc)
+    """MFCC系列のフレームごとユークリッド距離を、フレーム間で平均する。
+
+    区間別指標として短い部分波形を渡す場合の `n_fft` 過大警告の扱いは
+    `multiscale_spectral_distance` と同じ（モジュールdocstring参照）。
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", message=r"n_fft=\d+ is too large for input signal.*"
+        )
+        mfcc_target = librosa.feature.mfcc(y=target, sr=sample_rate, n_mfcc=n_mfcc)
+        mfcc_candidate = librosa.feature.mfcc(y=candidate, sr=sample_rate, n_mfcc=n_mfcc)
     n_frames = min(mfcc_target.shape[1], mfcc_candidate.shape[1])
     diff = mfcc_target[:, :n_frames] - mfcc_candidate[:, :n_frames]
     frame_distances = np.linalg.norm(diff, axis=0)
@@ -170,15 +218,95 @@ def _missing_overall(reason: str) -> dict:
     }
 
 
+def _segment_slice_bounds(
+    attack_end_s: float,
+    transition_end_s: float | None,
+    sustain_end_s: float | None,
+) -> dict[str, tuple[float, float | None] | None]:
+    """各区間の (start_s, end_s) を返す。`end_s=None` は「音源末尾まで」を意味する。
+
+    区間境界（`transition_end_s` / `sustain_end_s`）が注釈として与えられていない区間は
+    `None`（呼び出し側で欠測として扱う）。アタックは `attack_end_s` に常に既定値があるため
+    常に算出される（`DEFAULT_ATTACK_END_S` 参照）。
+    """
+    has_transition = transition_end_s is not None
+    has_sustain = has_transition and sustain_end_s is not None
+    return {
+        "attack": (0.0, attack_end_s),
+        "transition": (attack_end_s, transition_end_s) if has_transition else None,
+        "sustain": (transition_end_s, sustain_end_s) if has_sustain else None,
+        "release": (sustain_end_s, None) if sustain_end_s is not None else None,
+    }
+
+
+def _slice_by_seconds(
+    array: np.ndarray, sample_rate: int, start_s: float, end_s: float | None
+) -> np.ndarray:
+    """時刻（秒）で `array` を切り出す。`end_s=None` は配列末尾までを意味する。
+
+    範囲は配列長にクリップする（境界が音源長を超えていても例外を投げない）。
+    """
+    start = max(0, int(round(start_s * sample_rate)))
+    end = len(array) if end_s is None else max(0, int(round(end_s * sample_rate)))
+    end = min(end, len(array))
+    start = min(start, end)
+    return array[start:end]
+
+
+def compute_segment_metrics(
+    target: np.ndarray,
+    candidate: np.ndarray,
+    sample_rate: int,
+    attack_end_s: float = DEFAULT_ATTACK_END_S,
+    transition_end_s: float | None = None,
+    sustain_end_s: float | None = None,
+    fft_sizes: Sequence[int] = DEFAULT_FFT_SIZES,
+) -> dict:
+    """区間別指標（attack/transition/sustain/release × 全体指標と同じ3指標）を算出する。
+
+    境界が注釈として与えられていない区間（`transition_end_s` / `sustain_end_s` が `None`）は
+    欠測として出力する（Issue #6 完了条件）。切り出した部分波形の長さが0になる場合
+    （音源がその境界より短い等）も同様に欠測として出力し、例外は投げない。
+    """
+    bounds = _segment_slice_bounds(attack_end_s, transition_end_s, sustain_end_s)
+
+    segments: dict[str, dict] = {}
+    for name, bound in bounds.items():
+        if bound is None:
+            segments[name] = _missing_overall(_SEGMENT_BOUNDARY_MISSING_REASONS[name])
+            continue
+
+        start_s, end_s = bound
+        target_segment = _slice_by_seconds(target, sample_rate, start_s, end_s)
+        candidate_segment = _slice_by_seconds(candidate, sample_rate, start_s, end_s)
+        n = min(len(target_segment), len(candidate_segment))
+        if n == 0:
+            segments[name] = _missing_overall(
+                f"{name} 区間の波形長が0（音源がこの区間境界より短い）"
+            )
+            continue
+
+        segments[name] = compute_overall_metrics(
+            target_segment[:n], candidate_segment[:n], sample_rate, fft_sizes
+        )
+
+    return segments
+
+
 def compute_metrics_vector(
     target_path: str | Path,
     candidate_path: str | Path,
     fft_sizes: Sequence[int] = DEFAULT_FFT_SIZES,
+    attack_end_s: float = DEFAULT_ATTACK_END_S,
+    transition_end_s: float | None = None,
+    sustain_end_s: float | None = None,
 ) -> dict:
     """2つのWAVパスから、`docs/04-metrics.schema.json` に valid な指標ベクトルを組み立てる。
 
-    全体指標（overall）のみ本Issue（#5）で実際に算出する。segments / bands /
-    trajectories は P0-06 / P0-07 / P0-08 のスコープであり、ここでは欠測として出力する。
+    全体指標（overall）と区間別指標（segments）は本Issue（#5, #6）で実際に算出する。
+    区間境界のうち `transition_end_s` / `sustain_end_s` は既定値を持たない外部入力であり、
+    与えられなければ該当区間は欠測になる（`_segment_slice_bounds` 参照）。bands /
+    trajectories は P0-07 / P0-08 のスコープであり、ここでは欠測として出力する。
     """
     target_path = Path(target_path)
     candidate_path = Path(candidate_path)
@@ -189,15 +317,19 @@ def compute_metrics_vector(
 
     target = target_buffer.data[:, 0]
     candidate = candidate_buffer.data[:, 0]
+    sample_rate = target_buffer.sample_rate
 
-    overall = compute_overall_metrics(
-        target, candidate, target_buffer.sample_rate, fft_sizes
+    overall = compute_overall_metrics(target, candidate, sample_rate, fft_sizes)
+
+    segments = compute_segment_metrics(
+        target,
+        candidate,
+        sample_rate,
+        attack_end_s=attack_end_s,
+        transition_end_s=transition_end_s,
+        sustain_end_s=sustain_end_s,
+        fft_sizes=fft_sizes,
     )
-
-    segments = {
-        segment: _missing_overall(_NOT_IMPLEMENTED_REASONS["segments"])
-        for segment in ("attack", "transition", "sustain", "release")
-    }
 
     band_edges = [float(edge) for edge in DEFAULT_BAND_EDGES_HZ]
     bands = [
@@ -218,7 +350,17 @@ def compute_metrics_vector(
         "schema_version": SCHEMA_VERSION,
         "fft_sizes": [int(size) for size in fft_sizes],
         "band_edges_hz": band_edges,
-        "segment_boundaries_s": dict(DEFAULT_SEGMENT_BOUNDARIES_S),
+        # 実際に使用した区間境界の実値を記録する（Issue #6 完了条件）。注釈が与えられて
+        # いない transition_end_s / sustain_end_s は None（欠測）のまま記録し、値を捏造しない。
+        "segment_boundaries_s": {
+            "attack_end_s": float(attack_end_s),
+            "transition_end_s": (
+                float(transition_end_s) if transition_end_s is not None else None
+            ),
+            "sustain_end_s": (
+                float(sustain_end_s) if sustain_end_s is not None else None
+            ),
+        },
         # f0・フォルマント推定（P0-08/09）は本Issueで未使用のため "none" を記録する。
         # 決め打ちの推測ではなく「現時点で何も使っていない」という事実の記録。
         "estimation_algorithms": [{"name": "none", "version": "n/a"}],
@@ -238,11 +380,12 @@ __all__ = [
     "DEFAULT_FFT_SIZES",
     "DEFAULT_N_MFCC",
     "DEFAULT_BAND_EDGES_HZ",
-    "DEFAULT_SEGMENT_BOUNDARIES_S",
+    "DEFAULT_ATTACK_END_S",
     "SCHEMA_VERSION",
     "loudness_diff_db",
     "multiscale_spectral_distance",
     "mfcc_distance",
     "compute_overall_metrics",
+    "compute_segment_metrics",
     "compute_metrics_vector",
 ]
