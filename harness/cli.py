@@ -1,18 +1,20 @@
 """ハーネスのエントリポイント。
 
 `inspect`（WAVの中身確認）、`generate-fixtures`（既知解テスト用の合成フィクチャ生成、P0-04）、
-`spectrogram`（スペクトログラム画像対の生成、P0-14）の各サブコマンドを提供する。指標算出は
-P0-05以降の範囲。
+`metrics`（全体指標の算出、P0-05）、`spectrogram`（スペクトログラム画像対の生成、P0-14）の
+各サブコマンドを提供する。区間別・帯域別・軌跡指標はP0-06以降の範囲。
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 from harness.audio_io import read_wav
 from harness.fixture_gen import generate_all
+from harness.metrics import compute_metrics_vector
 from harness.spectrogram import render_pair
 
 
@@ -45,6 +47,13 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         help="出力先ディレクトリ（作成される）",
     )
+
+    metrics_parser = subparsers.add_parser(
+        "metrics",
+        help="2つのWAVパスから全体指標を算出し、指標ベクトルJSONを標準出力に出す（P0-05）",
+    )
+    metrics_parser.add_argument("target_wav", type=Path, help="比較の基準となるWAVファイル")
+    metrics_parser.add_argument("candidate_wav", type=Path, help="比較対象のWAVファイル")
 
     spectrogram_parser = subparsers.add_parser(
         "spectrogram",
@@ -110,6 +119,12 @@ def _run_fixtures(out_dir: Path, seed: int) -> int:
     return 0
 
 
+def _run_metrics(target_wav: Path, candidate_wav: Path) -> int:
+    vector = compute_metrics_vector(target_wav, candidate_wav)
+    print(json.dumps(vector, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _run_spectrogram(args: argparse.Namespace) -> int:
     metadata = render_pair(
         args.target,
@@ -138,6 +153,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_inspect(args.wav_path)
     if args.command == "generate-fixtures":
         return _run_fixtures(args.out, args.seed)
+    if args.command == "metrics":
+        return _run_metrics(args.target_wav, args.candidate_wav)
     if args.command == "spectrogram":
         return _run_spectrogram(args)
 
