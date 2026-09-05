@@ -13,6 +13,7 @@
 | `harness/metrics.py` | 全体指標（マルチスケールスペクトル距離 / MFCC距離 / ラウドネス差、P0-05）と軌跡指標の一部（トランジェント包絡相関 / f0軌跡距離、P0-08）の算出 |
 | `harness/spectrogram.py` | スペクトログラム画像対の生成器（PRに添付するエビデンス。図示のみで指標算出はしない） |
 | `harness/corpus_runner.py` | コーパス全体（`corpus/manifest.json`）への指標算出の一括実行（P0-11） |
+| `harness/metrics_diff.py` | `run-corpus` の出力2組（基準/今回）の機械可読な指標差分JSONの算出（P0-12b-1） |
 
 ## フィクチャ生成（P0-04）
 
@@ -72,6 +73,24 @@ python -m harness run-corpus --manifest corpus/manifest.json --out <dir>
 - 各音源の実行所要時間（秒）が `index.json` の該当エントリに記録される
 - 音源ごとのJSON（`<id>.json`）は、同一入力に対して2回実行してもビット単位で一致する
   （決定論）。`index.json` は実測の所要時間を含むため、この値自体は実行ごとに変わる
+
+## 指標差分（P0-12b-1）
+
+`run-corpus` の出力ディレクトリ2組（基準 / 今回）から、指標ごとの「前 / 後 / 差」を算出する。
+`AGENTS.md` 第4節が要求する3列出力の、機械可読な差分JSONの部分（`docs/04-metrics.md`「CIでの扱い」）。
+**人間向けの整形出力（表形式）はP0-12b-2のスコープであり、現時点ではまだない。**
+
+```
+python -m harness diff-corpus --baseline corpus/baseline --current <run-corpusの出力先> --out <dir>
+```
+
+- `<dir>` 直下に、機械可読な `diff.json` を出力する
+- 基準（baseline）ディレクトリの由来（`corpus/baseline/` の取得方法）は本コマンドの関知するところではない。決定と理由は `docs/04-metrics.md`「基準（baseline）指標JSONの取得方法」（Issue #37）を参照
+- `diff.json` の `targets` は、差の絶対値合計（`total_abs_diff`）が大きい順に並ぶ（#14 で図示する音源の選定に使う一覧）
+- 悪化した指標は `worsened: true` で明示される。向きは指標ごとに異なる（誤差・距離系は増加が悪化、`transient_env_corr` は減少が悪化、`loudness_diff_db` は0からの絶対距離の増加が悪化）。判定基準の詳細は `harness/metrics_diff.py` のdocstring参照
+- 一方または両方が欠測の指標は、差を捏造せず `diff: null` として出力し、悪化の判定対象にもしない
+- 基準と今回で構成音源が異なる場合、共通するidだけを比較する。片方にしかないidは `only_in_baseline` / `only_in_current` に記録し、比較対象には含めない
+- **指標の値・悪化件数に関わらず終了コードは常に0**（`docs/06-open-questions.md` Q-006の暫定の扱いに従う）。非0を返すのは基準/今回のディレクトリ自体が読めない、または共通するidが1件もない等、算出そのものが成立しない場合のみ
 
 ## スペクトログラム画像の生成（P0-14）
 
