@@ -93,13 +93,28 @@ python -m harness diff-corpus --baseline corpus/baseline --current <run-corpus�
 - 基準と今回で構成音源が異なる場合、共通するidだけを比較する。片方にしかないidは `only_in_baseline` / `only_in_current` に記録し、比較対象には含めない（`report.md` の冒頭にも一覧として表示する）
 - **指標の値・悪化件数に関わらず終了コードは常に0**（`docs/06-open-questions.md` Q-006の暫定の扱いに従う）。非0を返すのは基準/今回のディレクトリ自体が読めない、または共通するidが1件もない等、算出そのものが成立しない場合のみ
 
-### PRへの添付手順
+### PRへの添付手順（ローカル実行時）
 
-`report.md` はローカルの出力先ディレクトリに生成されるだけで、PRへの添付は自動化されていない
-（CIへの組み込みはP0-13のスコープであり、#40の完了条件には含まない）。`report.md` の内容を、
-音に影響する変更のPRの本文にそのまま貼り付ける（`AGENTS.md` 第4節「指標ベクトル差分」の実体）。
+`report.md` はローカルの出力先ディレクトリに生成されるだけで、`diff-corpus` 自体は
+PRへの添付を行わない。ローカルで実行した場合は、`report.md` の内容を音に影響する
+変更のPRの本文にそのまま貼り付ける（`AGENTS.md` 第4節「指標ベクトル差分」の実体）。
 スペクトログラム画像の添付（下記）と同じく、人間またはCIの手順が判断・実行する（本ツールは
-整形までを担い、貼り付け自体は行わない）。
+整形までを担い、貼り付け自体は行わない）。CIでの自動添付は次節参照。
+
+## CIでの自動出力（P0-13）
+
+`.github/workflows/metrics.yml` が `push`（`main`）と `pull_request` の両方で起動し、
+以下を毎回実行する（`docs/00-vision.md` フェーズ0の遷移条件）。
+
+1. `corpus/fetch_and_verify.py` で非同梱音源（`corpus/manifest.json` の `bundled: false`）を取得する。取得失敗（レート制限・取得不能な環境）はジョブを止めず、続く `run-corpus` 側の欠測記録に委ねる
+2. `run-corpus` を実行し、結果（音源ごとのJSON + `index.json`）を `metrics-vectors` として成果物に保存する
+3. `corpus/baseline/`（`docs/04-metrics.md`「基準（baseline）指標JSONの取得方法」）を基準に `diff-corpus` を実行し、結果（`diff.json` と `report.md`、P0-12b-2）を `metrics-diff` として成果物に保存する
+4. `report.md` の全文を、ジョブサマリ（GitHub Actionsの実行結果画面）に書く。これが `AGENTS.md` 第4節が要求する「指標ベクトル差分をPRに添付する」の自動化にあたる
+5. `run-corpus` / `diff-corpus` それぞれの所要時間（秒）をジョブサマリに書く
+
+**成否が指標の値に依存しない**（`docs/06-open-questions.md` Q-006の暫定の扱い）。ワークフローが
+失敗するのは、`run-corpus` が例外で失敗した場合（終了コード1）と、成果物のJSON件数がマニフェストの
+エントリ数と一致しない場合のみ。非同梱音源の取得失敗はジョブを失敗させない（1.参照）。
 
 ## スペクトログラム画像の生成（P0-14）
 

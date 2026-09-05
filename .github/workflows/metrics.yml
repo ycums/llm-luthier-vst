@@ -1,0 +1,135 @@
+name: Metrics
+
+# docs/00-vision.md フェーズ0の遷移条件「指標ベクトルがCIで自動出力される」を満たす
+# ワークフロー（Issue #13 / P0-13）。指標算出（run-corpus）と、前回コミットとの差分
+# （diff-corpus）を毎回実行し、結果を成果物とジョブサマリに出す。
+#
+# 指標の値がどうであれこのワークフロー自体は失敗させない（Q-006の暫定の扱い、
+# docs/06-open-questions.md）。失敗させるのは、指標算出そのものが例外で失敗した場合
+# （run-corpusの終了コード1）と、コーパス実行の成果物件数がマニフェストと食い違う場合のみ。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # 手動実行。同一コミットに対する複数回実行の決定論検証（Issue #13 完了条件）に使う。
+  workflow_dispatch:
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Fetch corpus audio (非同梱音源の取得)
+        # 同梱不可（bundled: false）の音源を corpus/.cache/ に取得する
+        # （corpus/fetch_and_verify.py、corpus/README.md「既知のリスク」参照）。
+        # ここで取得しない設計だと、非同梱の音源は常に欠測になり run-corpus の
+        # 欠測処理が一度も本来の目的（取得不能な環境での縮退）で機能せず、
+        # コーパスの多様性を指標算出に反映できない（PR #43 レビュー指摘）。
+        # 取得失敗（レート制限・取得不能な環境）はここで止めず、続く
+        # run-corpus 側の欠測記録に委ねる（Issue #13 完了条件）。
+        id: fetch_corpus
+        continue-on-error: true
+        run: python3 corpus/fetch_and_verify.py
+
+      - name: Run corpus (指標ベクトル算出)
+        id: run_corpus
+        run: |
+          start=$(date +%s)
+          uv run python -m harness run-corpus \
+            --manifest corpus/manifest.json \
+            --out metrics_output/current
+          echo "elapsed_s=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+
+      - name: Verify output count (成果物件数の検証)
+        run: |
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("corpus/manifest.json").read_text(encoding="utf-8"))
+          index = json.loads(Path("metrics_output/current/index.json").read_text(encoding="utf-8"))
+          expected = len(manifest["entries"])
+          per_id_files = [
+              p for p in Path("metrics_output/current").glob("*.json") if p.name != "index.json"
+          ]
+          assert index["entry_count"] == expected, (
+              f'index.entry_count={index["entry_count"]} != manifest entries={expected}'
+          )
+          assert len(per_id_files) == expected, (
+              f'per-id json files={len(per_id_files)} != manifest entries={expected}'
+          )
+          print(f"ok: {expected} manifest entries -> {expected} json + index.json")
+          PY
+
+      - name: Compute vectors checksum (決定論検証用)
+        # 音源ごとの指標ベクトルJSON（index.jsonを除く。所要時間を含み実行ごとに
+        # 変わるため）の合成SHA256をジョブ出力に残す。同一コミットに対する複数回の
+        # 実行でこの値が一致することが、Issue #13完了条件「出力JSONがビット単位で
+        # 一致する」の確認材料になる。
+        id: vectors_checksum
+        run: |
+          checksum=$(find metrics_output/current -maxdepth 1 -name '*.json' ! -name 'index.json' \
+            -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+          echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
+          echo "vectors sha256 (index.json除く): $checksum"
+
+      - name: Upload metrics vectors (成果物)
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-vectors
+          path: metrics_output/current
+
+      - name: Diff against baseline (前回コミットとの差分)
+        id: diff_corpus
+        run: |
+          start=$(date +%s)
+          uv run python -m harness diff-corpus \
+            --baseline corpus/baseline \
+            --current metrics_output/current \
+            --out metrics_output/diff
+          echo "elapsed_s=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+
+      - name: Upload diff (成果物)
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-diff
+          path: metrics_output/diff
+
+      - name: Write job summary
+        # ヘッダ（取得/所要時間/決定論チェックサム）に続けて、diff-corpus が生成した
+        # report.md（P0-12b-2、人間向け整形出力）をそのままジョブサマリに貼る。
+        # 整形ロジックはharness/metrics_diff_report.pyの責務であり、ここでは
+        # 二重実装しない（AGENTS.md第8節「先回りして環境を整えない」）。
+        env:
+          FETCH_CORPUS_OUTCOME: ${{ steps.fetch_corpus.outcome }}
+          RUN_CORPUS_ELAPSED_S: ${{ steps.run_corpus.outputs.elapsed_s }}
+          DIFF_CORPUS_ELAPSED_S: ${{ steps.diff_corpus.outputs.elapsed_s }}
+          VECTORS_SHA256: ${{ steps.vectors_checksum.outputs.sha256 }}
+        run: |
+          uv run python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          from pathlib import Path
+
+          index = json.loads(Path("metrics_output/current/index.json").read_text(encoding="utf-8"))
+          report = Path("metrics_output/diff/report.md").read_text(encoding="utf-8")
+
+          print("## 指標ベクトル自動出力（P0-13）")
+          print()
+          print(f"- fetch corpus audio: {os.environ['FETCH_CORPUS_OUTCOME']}"
+                "（失敗しても run-corpus 側の欠測記録に委ねて続行する）")
+          print(f"- run-corpus: {index['summary']} / 所要 {os.environ['RUN_CORPUS_ELAPSED_S']}s")
+          print(f"- diff-corpus 所要: {os.environ['DIFF_CORPUS_ELAPSED_S']}s")
+          print(f"- vectors sha256（index.json除く、決定論検証用）: `{os.environ['VECTORS_SHA256']}`")
+          print()
+          print(report)
+          PY
