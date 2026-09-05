@@ -58,6 +58,18 @@ jobs:
           print(f"ok: {expected} manifest entries -> {expected} json + index.json")
           PY
 
+      - name: Compute vectors checksum (決定論検証用)
+        # 音源ごとの指標ベクトルJSON（index.jsonを除く。所要時間を含み実行ごとに
+        # 変わるため）の合成SHA256をジョブ出力に残す。同一コミットに対する複数回の
+        # 実行でこの値が一致することが、Issue #13完了条件「出力JSONがビット単位で
+        # 一致する」の確認材料になる。
+        id: vectors_checksum
+        run: |
+          checksum=$(find metrics_output/current -maxdepth 1 -name '*.json' ! -name 'index.json' \
+            -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+          echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
+          echo "vectors sha256 (index.json除く): $checksum"
+
       - name: Upload metrics vectors (成果物)
         uses: actions/upload-artifact@v4
         with:
@@ -87,6 +99,7 @@ jobs:
         env:
           RUN_CORPUS_ELAPSED_S: ${{ steps.run_corpus.outputs.elapsed_s }}
           DIFF_CORPUS_ELAPSED_S: ${{ steps.diff_corpus.outputs.elapsed_s }}
+          VECTORS_SHA256: ${{ steps.vectors_checksum.outputs.sha256 }}
         run: |
           uv run python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
@@ -100,6 +113,7 @@ jobs:
           print()
           print(f"- run-corpus: {index['summary']} / 所要 {os.environ['RUN_CORPUS_ELAPSED_S']}s")
           print(f"- diff-corpus: {diff['summary']} / 所要 {os.environ['DIFF_CORPUS_ELAPSED_S']}s")
+          print(f"- vectors sha256（index.json除く、決定論検証用）: `{os.environ['VECTORS_SHA256']}`")
           print()
           print("悪化した指標（worsened_metrics）がある音源:")
           worsened = [t for t in diff["targets"] if t["worsened_metrics"]]
