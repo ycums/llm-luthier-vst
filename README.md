@@ -27,6 +27,8 @@
 
 フェーズの遷移条件は `docs/00-vision.md` を参照。
 
+フェーズ0の消化計画（依存関係・着手順・管理方式）は [Issue #15](https://github.com/ycums/llm-luthier-vst/issues/15) を参照。
+
 ## 読む順序
 
 初めてこのリポジトリに触れる場合：
