@@ -14,6 +14,7 @@
 | `harness/spectrogram.py` | スペクトログラム画像対の生成器（PRに添付するエビデンス。図示のみで指標算出はしない） |
 | `harness/corpus_runner.py` | コーパス全体（`corpus/manifest.json`）への指標算出の一括実行（P0-11） |
 | `harness/metrics_diff.py` | `run-corpus` の出力2組（基準/今回）の機械可読な指標差分JSONの算出（P0-12b-1） |
+| `harness/metrics_diff_report.py` | `metrics_diff.py` の差分JSONを人間向けのMarkdown表（変更前/変更後/差）に整形する（P0-12b-2） |
 
 ## フィクチャ生成（P0-04）
 
@@ -74,23 +75,31 @@ python -m harness run-corpus --manifest corpus/manifest.json --out <dir>
 - 音源ごとのJSON（`<id>.json`）は、同一入力に対して2回実行してもビット単位で一致する
   （決定論）。`index.json` は実測の所要時間を含むため、この値自体は実行ごとに変わる
 
-## 指標差分（P0-12b-1）
+## 指標差分（P0-12b-1 / P0-12b-2）
 
 `run-corpus` の出力ディレクトリ2組（基準 / 今回）から、指標ごとの「前 / 後 / 差」を算出する。
-`AGENTS.md` 第4節が要求する3列出力の、機械可読な差分JSONの部分（`docs/04-metrics.md`「CIでの扱い」）。
-**人間向けの整形出力（表形式）はP0-12b-2のスコープであり、現時点ではまだない。**
+`AGENTS.md` 第4節が要求する3列出力の実体。機械可読な差分JSON（`diff.json`、P0-12b-1）と、
+それをPRに貼れる人間向けのMarkdown表に整形したもの（`report.md`、P0-12b-2）の両方を出力する。
 
 ```
 python -m harness diff-corpus --baseline corpus/baseline --current <run-corpusの出力先> --out <dir>
 ```
 
-- `<dir>` 直下に、機械可読な `diff.json` を出力する
+- `<dir>` 直下に、機械可読な `diff.json` と、人間向けの `report.md` を出力する
 - 基準（baseline）ディレクトリの由来（`corpus/baseline/` の取得方法）は本コマンドの関知するところではない。決定と理由は `docs/04-metrics.md`「基準（baseline）指標JSONの取得方法」（Issue #37）を参照
-- `diff.json` の `targets` は、差の絶対値合計（`total_abs_diff`）が大きい順に並ぶ（#14 で図示する音源の選定に使う一覧）
-- 悪化した指標は `worsened: true` で明示される。向きは指標ごとに異なる（誤差・距離系は増加が悪化、`transient_env_corr` は減少が悪化、`loudness_diff_db` は0からの絶対距離の増加が悪化）。判定基準の詳細は `harness/metrics_diff.py` のdocstring参照
-- 一方または両方が欠測の指標は、差を捏造せず `diff: null` として出力し、悪化の判定対象にもしない
-- 基準と今回で構成音源が異なる場合、共通するidだけを比較する。片方にしかないidは `only_in_baseline` / `only_in_current` に記録し、比較対象には含めない
+- `diff.json` の `targets` は、差の絶対値合計（`total_abs_diff`）が大きい順に並ぶ（#14 で図示する音源の選定に使う一覧）。`report.md` も同じ順序で音源ごとのセクションを並べる（`harness/metrics_diff_report.py` は並べ替えを行わず、`metrics_diff.py` が算出した順序をそのまま使う）
+- 悪化した指標は `diff.json` では `worsened: true`、`report.md` では判定列に `⚠ 悪化` と明示される。向きは指標ごとに異なる（誤差・距離系は増加が悪化、`transient_env_corr` は減少が悪化、`loudness_diff_db` は0からの絶対距離の増加が悪化）。判定基準の詳細は `harness/metrics_diff.py` のdocstring参照
+- 一方または両方が欠測の指標は、差を捏造せず `diff.json` では `diff: null`、`report.md` では前/後/差すべて「欠測」として出力し、悪化の判定対象にもしない
+- 基準と今回で構成音源が異なる場合、共通するidだけを比較する。片方にしかないidは `only_in_baseline` / `only_in_current` に記録し、比較対象には含めない（`report.md` の冒頭にも一覧として表示する）
 - **指標の値・悪化件数に関わらず終了コードは常に0**（`docs/06-open-questions.md` Q-006の暫定の扱いに従う）。非0を返すのは基準/今回のディレクトリ自体が読めない、または共通するidが1件もない等、算出そのものが成立しない場合のみ
+
+### PRへの添付手順
+
+`report.md` はローカルの出力先ディレクトリに生成されるだけで、PRへの添付は自動化されていない
+（CIへの組み込みはP0-13のスコープであり、#40の完了条件には含まない）。`report.md` の内容を、
+音に影響する変更のPRの本文にそのまま貼り付ける（`AGENTS.md` 第4節「指標ベクトル差分」の実体）。
+スペクトログラム画像の添付（下記）と同じく、人間またはCIの手順が判断・実行する（本ツールは
+整形までを担い、貼り付け自体は行わない）。
 
 ## スペクトログラム画像の生成（P0-14）
 

@@ -3,10 +3,9 @@
 `inspect`（WAVの中身確認）、`generate-fixtures`（既知解テスト用の合成フィクチャ生成、P0-04）、
 `metrics`（全体指標・区間別指標・軌跡指標の一部の算出、P0-05/P0-06/P0-08）、`spectrogram`
 （スペクトグラム画像対の生成、P0-14）、`run-corpus`（コーパス全体への指標算出の一括実行、
-P0-11）、`diff-corpus`（コーパス実行結果2組の機械可読な指標差分JSONの算出、P0-12b-1）の
-各サブコマンドを提供する。帯域別指標はP0-07、フォルマント軌跡距離はP0-09の範囲。
-人間向けの整形出力（`diff-corpus` の出力を表形式にするもの）はP0-12b-2のスコープであり、
-本モジュールにはまだ存在しない。
+P0-11）、`diff-corpus`（コーパス実行結果2組の機械可読な指標差分JSON `diff.json` と、
+人間向けの整形出力 `report.md` の算出、P0-12b-1 / P0-12b-2）の各サブコマンドを提供する。
+帯域別指標はP0-07、フォルマント軌跡距離はP0-09の範囲。
 """
 
 from __future__ import annotations
@@ -21,6 +20,7 @@ from harness.corpus_runner import ManifestError, run_corpus
 from harness.fixture_gen import generate_all
 from harness.metrics import DEFAULT_ATTACK_END_S, compute_metrics_vector
 from harness.metrics_diff import MetricsDiffError, run_metrics_diff
+from harness.metrics_diff_report import render_diff_report
 from harness.spectrogram import render_pair
 
 
@@ -161,7 +161,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "diff-corpus",
         help=(
             "コーパス実行結果2組（基準/今回、いずれも run-corpus の出力形式）から、"
-            "機械可読な指標差分JSON（diff.json）を出力する（P0-12b-1）"
+            "機械可読な指標差分JSON（diff.json）と人間向けの整形出力（report.md）を"
+            "出力する（P0-12b-1 / P0-12b-2）"
         ),
     )
     diff_corpus_parser.add_argument(
@@ -265,6 +266,7 @@ def _run_diff_corpus(baseline: Path, current: Path, out: Path) -> int:
     (out / "diff.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+    (out / "report.md").write_text(render_diff_report(result) + "\n", encoding="utf-8")
 
     summary = result["summary"]
     print(
@@ -273,6 +275,7 @@ def _run_diff_corpus(baseline: Path, current: Path, out: Path) -> int:
         f"worsened_metrics={summary['worsened_metric_count']})"
     )
     print(f"diff json: {out / 'diff.json'}")
+    print(f"report: {out / 'report.md'}")
     # 指標の値・悪化件数に関わらず常に0（Q-006の暫定の扱い、Issue #39完了条件）。
     # 非0を返すのは基準/今回のディレクトリ自体が読めない等、算出そのものが成立しない場合のみ。
     return 0
