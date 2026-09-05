@@ -1,0 +1,22 @@
+[project]
+name = "llm-luthier-harness"
+version = "0.1.0"
+description = "レンダ結果の客観評価指標を算出するハーネス（docs/04-metrics.md）。エンジン本体（フェーズ1以降、C++等）とは別レイヤ。"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "soundfile>=0.12",
+    "librosa>=0.10",
+    "matplotlib>=3.8",
+    "jsonschema>=4.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
