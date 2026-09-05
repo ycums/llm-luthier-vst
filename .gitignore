@@ -1,0 +1,11 @@
+build/
+out/
+*.o
+*.so
+*.dylib
+*.dll
+*.vst3
+renders/
+__pycache__/
+.venv/
+.DS_Store
