@@ -3,7 +3,10 @@
 `inspect`（WAVの中身確認）、`generate-fixtures`（既知解テスト用の合成フィクチャ生成、P0-04）、
 `metrics`（全体指標・区間別指標・軌跡指標の一部の算出、P0-05/P0-06/P0-08）、`spectrogram`
 （スペクトグラム画像対の生成、P0-14）、`run-corpus`（コーパス全体への指標算出の一括実行、
-P0-11）の各サブコマンドを提供する。帯域別指標はP0-07、フォルマント軌跡距離はP0-09の範囲。
+P0-11）、`diff-corpus`（コーパス実行結果2組の機械可読な指標差分JSONの算出、P0-12b-1）の
+各サブコマンドを提供する。帯域別指標はP0-07、フォルマント軌跡距離はP0-09の範囲。
+人間向けの整形出力（`diff-corpus` の出力を表形式にするもの）はP0-12b-2のスコープであり、
+本モジュールにはまだ存在しない。
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from harness.audio_io import read_wav
 from harness.corpus_runner import ManifestError, run_corpus
 from harness.fixture_gen import generate_all
 from harness.metrics import DEFAULT_ATTACK_END_S, compute_metrics_vector
+from harness.metrics_diff import MetricsDiffError, run_metrics_diff
 from harness.spectrogram import render_pair
 
 
@@ -153,6 +157,29 @@ def _build_parser() -> argparse.ArgumentParser:
         help="アタック区間の終端（秒）。`metrics` サブコマンドと同じ既定値・意味を持つ",
     )
 
+    diff_corpus_parser = subparsers.add_parser(
+        "diff-corpus",
+        help=(
+            "コーパス実行結果2組（基準/今回、いずれも run-corpus の出力形式）から、"
+            "機械可読な指標差分JSON（diff.json）を出力する（P0-12b-1）"
+        ),
+    )
+    diff_corpus_parser.add_argument(
+        "--baseline",
+        type=Path,
+        required=True,
+        help="基準（baseline）となる run-corpus の出力ディレクトリ",
+    )
+    diff_corpus_parser.add_argument(
+        "--current",
+        type=Path,
+        required=True,
+        help="今回の run-corpus の出力ディレクトリ",
+    )
+    diff_corpus_parser.add_argument(
+        "--out", type=Path, required=True, help="出力先ディレクトリ（作成される）"
+    )
+
     return parser
 
 
@@ -227,6 +254,30 @@ def _run_run_corpus(manifest: Path, out: Path, attack_end_s: float) -> int:
     return 1 if summary["error"] > 0 else 0
 
 
+def _run_diff_corpus(baseline: Path, current: Path, out: Path) -> int:
+    try:
+        result = run_metrics_diff(baseline, current)
+    except MetricsDiffError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "diff.json").write_text(
+        json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+    summary = result["summary"]
+    print(
+        f"compared: {summary['compared_count']} "
+        f"(worsened_targets={summary['worsened_target_count']} "
+        f"worsened_metrics={summary['worsened_metric_count']})"
+    )
+    print(f"diff json: {out / 'diff.json'}")
+    # 指標の値・悪化件数に関わらず常に0（Q-006の暫定の扱い、Issue #39完了条件）。
+    # 非0を返すのは基準/今回のディレクトリ自体が読めない等、算出そのものが成立しない場合のみ。
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -247,6 +298,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_spectrogram(args)
     if args.command == "run-corpus":
         return _run_run_corpus(args.manifest, args.out, args.attack_end_s)
+    if args.command == "diff-corpus":
+        return _run_diff_corpus(args.baseline, args.current, args.out)
 
     # サブコマンド未指定時はヘルプを表示して終了する（エラー扱いにはしない）。
     parser.print_help()
