@@ -1,19 +1,19 @@
-"""全体指標（P0-05 #5）・帯域別指標（P0-07 #7）の実装。
+"""全体指標（P0-05 #5）・帯域別指標（P0-07 #7）と軌跡指標の一部（P0-08 #8）の実装。
 
-`docs/04-metrics.md` の「全体指標」「帯域別指標」を算出し、`docs/04-metrics.schema.json` に
-valid な指標ベクトル全体（overall / segments / bands / trajectories / calc_conditions）を
-組み立てる。
+`docs/04-metrics.md` の「全体指標」「帯域別指標」、および軌跡指標のうちトランジェント
+包絡相関・f0軌跡距離を算出し、`docs/04-metrics.schema.json` に valid な指標ベクトル全体
+（overall / segments / bands / trajectories / calc_conditions）を組み立てる。
 
-区間別（P0-06 #6）・軌跡（P0-08 #8）の各指標は本モジュールのスコープ外であり、それぞれ欠測
-（`value: null` + `missing_reason`）として出力する。calc_conditions に記録する区間境界の
-既定値は、区間別指標が実装されるまでの設定として外出ししてあるのみで、値の妥当性はここでは
-問わない（`docs/04-metrics.md` 末尾「未確定」、Q-009 参照）。estimation_algorithms も同じ理由で
-「未使用」を表す `none` を記録する（f0・フォルマント推定は P0-08 / P0-09 のスコープ）。
+区間別（P0-06 #6）指標と軌跡指標のうちフォルマント軌跡距離（P0-09）は本モジュールのスコープ
+外であり、それぞれ欠測（`value: null` + `missing_reason`）として出力する。
+calc_conditions に記録する帯域端・区間境界の既定値は、それらの指標が実装されるまでの設定として
+外出ししてあるのみで、値の妥当性はここでは問わない（`docs/04-metrics.md` 末尾「未確定」、
+Q-004 / Q-009 参照）。
 
 帯域端リスト（`band_edges_hz`）は設定データであり、既定値は `harness/band_edges_default.json`
 に外出ししてある。この既定値は暫定であり、帯域分割方式（等間隔/メル/バーク）自体は
 `docs/06-open-questions.md` の Q-004 が未解決である（本Issueは Q-004 を解決するものではない。
-Q-004 解決に必要な観測を行うために方式を切り替え可能にするのが本Issueの目的）。
+Q-004 解決に必要な観測を行うために方式を切り替え可能にするのがそのIssueの目的）。
 
 ## ラウドネス差の定義と符号
 
@@ -47,8 +47,35 @@ RMSで十分である。
 帯域端は Hz のリスト（設定データ）として与える。等間隔・メル・バークいずれの刻みで生成した
 リストでも、本実装はビンをHzの範囲で選ぶだけで刻み方式そのものを一切知らない。そのため
 分割方式の変更は設定側（呼び出し時に渡すリスト）だけで完結し、実装の変更を要さない
-（帯域分割方式そのものの決定はQ-004、`docs/06-open-questions.md` 参照。未解決のまま本Issueに
-着手してよいと判断されている）。
+（帯域分割方式そのものの決定はQ-004、`docs/06-open-questions.md` 参照）。
+
+## トランジェント包絡相関（transient_env_corr）
+
+`librosa.feature.rms`（フレーム単位のRMS振幅）を振幅包絡として、target・candidate間の
+ピアソン相関係数を返す（`docs/04-metrics.md` の目的「アタックの形が合っているか」）。
+時間軸全体の包絡を使う（アタック区間だけに窓を切らない）。理由：フィクスチャ生成器
+（`harness/fixture_gen.py`）が作る音は立ち上がりに減衰・フェードを持たない矩形状の
+ゲイン変化であり、区間別指標のアタック窓（既定20ms、`DEFAULT_SEGMENT_BOUNDARIES_S`）に
+限定すると、target側の窓内振幅がほぼ一定になり相関係数の分散項がゼロに近づいて数値的に
+不安定になる（アタック位置がその窓幅を超えてずれるフィクスチャでは片方が窓内で無音になり
+相関が定義できないケースすら生じる）。時間軸全体を使えば、倍音間のビート（うなり）に
+由来する自然な包絡変動が両系列に残り、既知の遅延に対しても頑健に相関が計算できる
+（`tests/test_trajectory_metrics.py` で実測を確認）。
+包絡の分散がゼロ（無音・完全に一定の信号）の場合は相関が定義できないため欠測を返す。
+
+## f0軌跡距離（f0_dist）
+
+`librosa.pyin`（確率的YIN、Mauch & Dixon 2014）でフレームごとのf0（Hz）と有声フラグを推定し、
+target・candidateの双方が有声なフレームに限定してf0の絶対誤差（Hz）を平均する。
+単純な `librosa.yin` ではなく `pyin` を使う理由：`yin` は無声区間でも「それらしい」周波数を
+常に返してしまい、`docs/04-metrics.md` の「f0が存在しない入力に対してでたらめな値を返さない」
+という要求（Issue #8 完了条件）を満たせない。`pyin` の有声判定（ビタビ復号）を使うことで、
+無音・非周期音（ノイズ）を「有声フレームなし」として区別できる。
+target・candidateのどちらかに有声フレームが1つもない場合、または両者の有声区間が重ならない
+場合は欠測を返す。
+使用したアルゴリズム名・バージョン（`F0_ALGORITHM_NAME` / `librosa.__version__`）は
+calc_conditions.estimation_algorithms に記録する（Issue #8 完了条件、
+`docs/06-open-questions.md` Q-011 参照：pYIN以外の推定方式は今後の検討課題として残す）。
 """
 
 from __future__ import annotations
@@ -88,6 +115,21 @@ def _load_default_band_edges_hz() -> tuple[float, ...]:
 
 DEFAULT_BAND_EDGES_HZ: tuple[float, ...] = _load_default_band_edges_hz()
 
+#: トランジェント包絡相関の算出に使う振幅包絡（フレームRMS）のフレーム長・ホップ長。
+DEFAULT_TRANSIENT_ENV_FRAME_LENGTH = 1024
+DEFAULT_TRANSIENT_ENV_HOP_LENGTH = 256
+
+#: f0軌跡距離の算出に使うpYINの探索範囲とフレーム設定。
+#: fmin/fmaxはコーパスの実用的な音域（低音楽器〜高音域）を広めにカバーする値。
+DEFAULT_F0_FMIN_HZ = 60.0
+DEFAULT_F0_FMAX_HZ = 1000.0
+DEFAULT_F0_FRAME_LENGTH = 2048
+DEFAULT_F0_HOP_LENGTH = 256
+
+#: f0推定に使うアルゴリズム名（calc_conditions.estimation_algorithms に記録する）。
+#: 選定の背景・代替案は docs/06-open-questions.md Q-011 を参照。
+F0_ALGORITHM_NAME = "pyin"
+
 #: 区間別指標（P0-06、本モジュールのスコープ外）用の既定設定。値そのものの妥当性は問わない
 #: （docs/04-metrics.md「未確定」節、Q-009参照）。
 DEFAULT_SEGMENT_BOUNDARIES_S: dict = {
@@ -100,8 +142,8 @@ DEFAULT_SEGMENT_BOUNDARIES_S: dict = {
 SCHEMA_VERSION = "1.0.0"
 
 _NOT_IMPLEMENTED_REASONS = {
-    "segments": "区間別指標は本Issue（P0-07 #7）のスコープ外（P0-06 #6 で実装予定）",
-    "trajectories": "軌跡指標は本Issue（P0-07 #7）のスコープ外（P0-08 #8 で実装予定）",
+    "segments": "区間別指標は本モジュールのスコープ外（P0-06 #6 で実装予定）",
+    "formant_dist": "フォルマント軌跡距離は本モジュールのスコープ外（P0-09 で実装予定）",
 }
 
 
@@ -264,6 +306,116 @@ def mfcc_distance(
     return float(np.mean(frame_distances))
 
 
+def transient_envelope_correlation(
+    target: np.ndarray,
+    candidate: np.ndarray,
+    frame_length: int = DEFAULT_TRANSIENT_ENV_FRAME_LENGTH,
+    hop_length: int = DEFAULT_TRANSIENT_ENV_HOP_LENGTH,
+) -> dict:
+    """振幅包絡（フレームRMS）のピアソン相関係数を返す。
+
+    設計の背景はモジュールdocstring「トランジェント包絡相関」を参照。
+    包絡の分散がゼロ（無音・完全に一定の信号）の場合は欠測を返す。
+    """
+    env_target = librosa.feature.rms(
+        y=target, frame_length=frame_length, hop_length=hop_length
+    )[0]
+    env_candidate = librosa.feature.rms(
+        y=candidate, frame_length=frame_length, hop_length=hop_length
+    )[0]
+    n_frames = min(len(env_target), len(env_candidate))
+    env_target = env_target[:n_frames]
+    env_candidate = env_candidate[:n_frames]
+
+    if n_frames < 2 or np.std(env_target) == 0.0 or np.std(env_candidate) == 0.0:
+        return _missing(
+            "振幅包絡の分散がゼロのため相関を算出できない（無音または完全に一定の信号）"
+        )
+
+    corr = float(np.corrcoef(env_target, env_candidate)[0, 1])
+    return _metric_value(corr)
+
+
+def estimate_f0_contour(
+    signal: np.ndarray,
+    sample_rate: int,
+    fmin: float = DEFAULT_F0_FMIN_HZ,
+    fmax: float = DEFAULT_F0_FMAX_HZ,
+    frame_length: int = DEFAULT_F0_FRAME_LENGTH,
+    hop_length: int = DEFAULT_F0_HOP_LENGTH,
+) -> tuple[np.ndarray, np.ndarray]:
+    """pYINでフレームごとのf0（Hz）と有声フラグを推定する。
+
+    戻り値は `(f0, voiced)`。`voiced[i]` が `False` のフレームの `f0[i]` は
+    無声区間の値であり、でたらめな値として扱わない（呼び出し側は `voiced` で
+    フィルタすること）。単純なYINではなくpYINを使う理由はモジュールdocstring
+    「f0軌跡距離」を参照。
+    """
+    f0, voiced, _voiced_prob = librosa.pyin(
+        signal,
+        fmin=fmin,
+        fmax=fmax,
+        sr=sample_rate,
+        frame_length=frame_length,
+        hop_length=hop_length,
+    )
+    return f0, voiced
+
+
+def f0_trajectory_distance(
+    target: np.ndarray,
+    candidate: np.ndarray,
+    sample_rate: int,
+    fmin: float = DEFAULT_F0_FMIN_HZ,
+    fmax: float = DEFAULT_F0_FMAX_HZ,
+    frame_length: int = DEFAULT_F0_FRAME_LENGTH,
+    hop_length: int = DEFAULT_F0_HOP_LENGTH,
+) -> dict:
+    """f0軌跡の平均絶対誤差（Hz）。target・candidateの両方が有声なフレームのみで平均する。
+
+    どちらかに有声フレームが1つもない場合、または有声区間が重ならない場合は欠測を返す
+    （でたらめな値を返さないため。Issue #8 完了条件）。
+    """
+    f0_target, voiced_target = estimate_f0_contour(
+        target, sample_rate, fmin, fmax, frame_length, hop_length
+    )
+    f0_candidate, voiced_candidate = estimate_f0_contour(
+        candidate, sample_rate, fmin, fmax, frame_length, hop_length
+    )
+    n_frames = min(len(f0_target), len(f0_candidate))
+    f0_target = f0_target[:n_frames]
+    voiced_target = voiced_target[:n_frames]
+    f0_candidate = f0_candidate[:n_frames]
+    voiced_candidate = voiced_candidate[:n_frames]
+
+    if not np.any(voiced_target):
+        return _missing("target に有声フレームが存在しないためf0軌跡を算出できない")
+    if not np.any(voiced_candidate):
+        return _missing("candidate に有声フレームが存在しないためf0軌跡を算出できない")
+
+    both_voiced = voiced_target & voiced_candidate
+    if not np.any(both_voiced):
+        return _missing(
+            "target と candidate の有声区間が重ならないためf0軌跡を算出できない"
+        )
+
+    diff = np.abs(f0_target[both_voiced] - f0_candidate[both_voiced])
+    return _metric_value(float(np.mean(diff)))
+
+
+def compute_trajectory_metrics(
+    target: np.ndarray,
+    candidate: np.ndarray,
+    sample_rate: int,
+) -> dict:
+    """軌跡指標3件を組み立てる。フォルマント軌跡距離はP0-09のスコープであり欠測とする。"""
+    return {
+        "transient_env_corr": transient_envelope_correlation(target, candidate),
+        "f0_dist": f0_trajectory_distance(target, candidate, sample_rate),
+        "formant_dist": _missing(_NOT_IMPLEMENTED_REASONS["formant_dist"]),
+    }
+
+
 def _load_mono(path: str | Path) -> AudioBuffer:
     return to_mono(read_wav(path))
 
@@ -300,8 +452,9 @@ def compute_metrics_vector(
 ) -> dict:
     """2つのWAVパスから、`docs/04-metrics.schema.json` に valid な指標ベクトルを組み立てる。
 
-    全体指標（overall）・帯域別指標（bands）を実際に算出する（P0-05 #5 / P0-07 #7）。
-    segments / trajectories は P0-06 / P0-08 のスコープであり、ここでは欠測として出力する。
+全体指標（overall）・帯域別指標（bands）と、軌跡指標のうちトランジェント包絡相関・
+    f0軌跡距離を実際に算出する（P0-05 #5 / P0-07 #7 / P0-08 #8）。
+    segments（P0-06）とフォルマント軌跡距離（P0-09）はここでは欠測として出力する。
     """
     target_path = Path(target_path)
     candidate_path = Path(candidate_path)
@@ -326,19 +479,17 @@ def compute_metrics_vector(
         target, candidate, target_buffer.sample_rate, band_edges_hz, fft_sizes
     )
 
-    trajectories = {
-        name: _missing(_NOT_IMPLEMENTED_REASONS["trajectories"])
-        for name in ("transient_env_corr", "f0_dist", "formant_dist")
-    }
+    trajectories = compute_trajectory_metrics(target, candidate, target_buffer.sample_rate)
 
     calc_conditions = {
         "schema_version": SCHEMA_VERSION,
         "fft_sizes": [int(size) for size in fft_sizes],
         "band_edges_hz": [float(edge) for edge in band_edges_hz],
         "segment_boundaries_s": dict(DEFAULT_SEGMENT_BOUNDARIES_S),
-        # f0・フォルマント推定（P0-08/09）は本Issueで未使用のため "none" を記録する。
-        # 決め打ちの推測ではなく「現時点で何も使っていない」という事実の記録。
-        "estimation_algorithms": [{"name": "none", "version": "n/a"}],
+        # f0推定（pYIN）を使用。フォルマント推定（P0-09）は本Issueで未使用。
+        "estimation_algorithms": [
+            {"name": F0_ALGORITHM_NAME, "version": librosa.__version__}
+        ],
     }
 
     return {
@@ -354,6 +505,13 @@ def compute_metrics_vector(
 __all__ = [
     "DEFAULT_FFT_SIZES",
     "DEFAULT_N_MFCC",
+    "DEFAULT_TRANSIENT_ENV_FRAME_LENGTH",
+    "DEFAULT_TRANSIENT_ENV_HOP_LENGTH",
+    "DEFAULT_F0_FMIN_HZ",
+    "DEFAULT_F0_FMAX_HZ",
+    "DEFAULT_F0_FRAME_LENGTH",
+    "DEFAULT_F0_HOP_LENGTH",
+    "F0_ALGORITHM_NAME",
     "DEFAULT_BAND_EDGES_HZ",
     "DEFAULT_SEGMENT_BOUNDARIES_S",
     "SCHEMA_VERSION",
@@ -361,7 +519,11 @@ __all__ = [
     "multiscale_spectral_distance",
     "mfcc_distance",
     "band_spectral_error",
+    "transient_envelope_correlation",
+    "estimate_f0_contour",
+    "f0_trajectory_distance",
     "compute_overall_metrics",
     "compute_band_metrics",
+    "compute_trajectory_metrics",
     "compute_metrics_vector",
 ]
