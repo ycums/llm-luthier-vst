@@ -95,10 +95,11 @@ calc_conditions.estimation_algorithms に記録する（Issue #8 完了条件、
 
 from __future__ import annotations
 
+import itertools
 import json
 import warnings
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 import librosa
 import numpy as np
@@ -306,7 +307,7 @@ def compute_band_metrics(
     edges = list(band_edges_hz)
     last_index = len(edges) - 2
     bands = []
-    for i, (lo, hi) in enumerate(zip(edges[:-1], edges[1:])):
+    for i, (lo, hi) in enumerate(itertools.pairwise(edges)):
         error = band_spectral_error(
             target,
             candidate,
@@ -519,8 +520,8 @@ def _slice_by_seconds(
 
     範囲は配列長にクリップする（境界が音源長を超えていても例外を投げない）。
     """
-    start = max(0, int(round(start_s * sample_rate)))
-    end = len(array) if end_s is None else max(0, int(round(end_s * sample_rate)))
+    start = max(0, round(start_s * sample_rate))
+    end = len(array) if end_s is None else max(0, round(end_s * sample_rate))
     end = min(end, len(array))
     start = min(start, end)
     return array[start:end]
@@ -644,28 +645,28 @@ def compute_metrics_vector(
 
 
 __all__ = [
+    "DEFAULT_ATTACK_END_S",
+    "DEFAULT_BAND_EDGES_HZ",
+    "DEFAULT_F0_FMAX_HZ",
+    "DEFAULT_F0_FMIN_HZ",
+    "DEFAULT_F0_FRAME_LENGTH",
+    "DEFAULT_F0_HOP_LENGTH",
     "DEFAULT_FFT_SIZES",
     "DEFAULT_N_MFCC",
     "DEFAULT_TRANSIENT_ENV_FRAME_LENGTH",
     "DEFAULT_TRANSIENT_ENV_HOP_LENGTH",
-    "DEFAULT_F0_FMIN_HZ",
-    "DEFAULT_F0_FMAX_HZ",
-    "DEFAULT_F0_FRAME_LENGTH",
-    "DEFAULT_F0_HOP_LENGTH",
     "F0_ALGORITHM_NAME",
-    "DEFAULT_BAND_EDGES_HZ",
-    "DEFAULT_ATTACK_END_S",
     "SCHEMA_VERSION",
-    "loudness_diff_db",
-    "multiscale_spectral_distance",
-    "mfcc_distance",
     "band_spectral_error",
-    "transient_envelope_correlation",
-    "estimate_f0_contour",
-    "f0_trajectory_distance",
+    "compute_band_metrics",
+    "compute_metrics_vector",
     "compute_overall_metrics",
     "compute_segment_metrics",
-    "compute_band_metrics",
     "compute_trajectory_metrics",
-    "compute_metrics_vector",
+    "estimate_f0_contour",
+    "f0_trajectory_distance",
+    "loudness_diff_db",
+    "mfcc_distance",
+    "multiscale_spectral_distance",
+    "transient_envelope_correlation",
 ]
