@@ -15,7 +15,14 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    # ruff 0.16 でデフォルトのルールが大幅拡大。CI とローカルで挙動を一致させるため
+    # マイナーバージョンで固定する（AGENTS.md 第8節「3回ルール」のカウントが前提）。
+    "ruff>=0.16,<0.17",
 ]
+
+[tool.ruff]
+# デフォルトのルールセット(ruff 0.16 の既定)を使う。明示指定はしない。
+target-version = "py311"
 
 [project.scripts]
 llm-luthier-harness = "harness.cli:main"

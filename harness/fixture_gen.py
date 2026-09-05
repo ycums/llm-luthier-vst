@@ -203,7 +203,7 @@ def _build_pairs(seed: int) -> list[FixturePair]:
 
     # (e) アタックの立ち上がり位置が既知の時間だけ後ろにずれている（candidate の先頭に無声を挿入）
     onset_shift_s = ONSET_SHIFT_S
-    shift_samps = int(round(onset_shift_s * SAMPLE_RATE))
+    shift_samps = round(onset_shift_s * SAMPLE_RATE)
     candidate_e = np.concatenate(
         (
             np.zeros((shift_samps, 1)),
@@ -343,15 +343,15 @@ def _sha256(path: Path) -> str:
 
 
 __all__ = [
-    "generate_all",
-    "SAMPLE_RATE",
     "DURATION_S",
-    "GAIN_DB",
-    "LOWPASS_CUTOFF_HZ",
-    "NOISE_SNR_DB",
-    "ONSET_SHIFT_S",
     "F0_FIXED_HZ",
     "F0_GLIDE_FROM_HZ",
     "F0_GLIDE_TO_HZ",
+    "GAIN_DB",
     "GLIDE_INTERVAL_S",
+    "LOWPASS_CUTOFF_HZ",
+    "NOISE_SNR_DB",
+    "ONSET_SHIFT_S",
+    "SAMPLE_RATE",
+    "generate_all",
 ]

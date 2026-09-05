@@ -35,11 +35,11 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt  # noqa: E402  (バックエンド確定後にimportする必要がある)
-import numpy as np  # noqa: E402
-from scipy.signal import stft  # noqa: E402
+import matplotlib.pyplot as plt  # バックエンド確定後にimportする必要がある
+import numpy as np
+from scipy.signal import stft
 
-from harness.audio_io import read_wav, require_same_sample_rate, to_mono  # noqa: E402
+from harness.audio_io import read_wav, require_same_sample_rate, to_mono
 
 # 振幅0（無音）でlog10が発散しないための下駄。dB値は -240dB 相当が下限になる。
 _AMPLITUDE_FLOOR = 1e-12
