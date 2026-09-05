@@ -22,6 +22,7 @@
 ## Definition of Done
 
 - [ ] 変更が意図した範囲に収まっている
+- [ ] 実装はTDD手順（Red→Green→Refactor、AGENTS.md 第3節）に従った。従えなかった場合は理由:
 - [ ] テストが通っている。テストを通すためにテストを書き換えていない
 - [ ] 仕様変更を含む場合、ADRを追加した
 - [ ] 判明した未確定事項を `docs/06-open-questions.md` に追記した
