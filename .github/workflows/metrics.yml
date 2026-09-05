@@ -105,9 +105,10 @@ jobs:
           path: metrics_output/diff
 
       - name: Write job summary
-        # 悪化件数・所要時間の要約と、機械可読な差分JSONの全文を書く。表形式などの
-        # 人間向け整形出力はP0-12b-2（#40）のスコープであり、本ステップはそれを
-        # 代替しない（AGENTS.md第8節「先回りして環境を整えない」）。
+        # ヘッダ（取得/所要時間/決定論チェックサム）に続けて、diff-corpus が生成した
+        # report.md（P0-12b-2、人間向け整形出力）をそのままジョブサマリに貼る。
+        # 整形ロジックはharness/metrics_diff_report.pyの責務であり、ここでは
+        # 二重実装しない（AGENTS.md第8節「先回りして環境を整えない」）。
         env:
           FETCH_CORPUS_OUTCOME: ${{ steps.fetch_corpus.outcome }}
           RUN_CORPUS_ELAPSED_S: ${{ steps.run_corpus.outputs.elapsed_s }}
@@ -120,28 +121,15 @@ jobs:
           from pathlib import Path
 
           index = json.loads(Path("metrics_output/current/index.json").read_text(encoding="utf-8"))
-          diff = json.loads(Path("metrics_output/diff/diff.json").read_text(encoding="utf-8"))
+          report = Path("metrics_output/diff/report.md").read_text(encoding="utf-8")
 
           print("## 指標ベクトル自動出力（P0-13）")
           print()
           print(f"- fetch corpus audio: {os.environ['FETCH_CORPUS_OUTCOME']}"
                 "（失敗しても run-corpus 側の欠測記録に委ねて続行する）")
           print(f"- run-corpus: {index['summary']} / 所要 {os.environ['RUN_CORPUS_ELAPSED_S']}s")
-          print(f"- diff-corpus: {diff['summary']} / 所要 {os.environ['DIFF_CORPUS_ELAPSED_S']}s")
+          print(f"- diff-corpus 所要: {os.environ['DIFF_CORPUS_ELAPSED_S']}s")
           print(f"- vectors sha256（index.json除く、決定論検証用）: `{os.environ['VECTORS_SHA256']}`")
           print()
-          print("悪化した指標（worsened_metrics）がある音源:")
-          worsened = [t for t in diff["targets"] if t["worsened_metrics"]]
-          if not worsened:
-              print("- なし")
-          else:
-              for t in worsened:
-                  print(f"- {t['id']}: {', '.join(t['worsened_metrics'])}")
-          print()
-          print("<details><summary>diff.json（機械可読・全文）</summary>")
-          print()
-          print("```json")
-          print(json.dumps(diff, ensure_ascii=False, indent=2))
-          print("```")
-          print("</details>")
+          print(report)
           PY
