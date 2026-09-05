@@ -28,6 +28,18 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Fetch corpus audio (非同梱音源の取得)
+        # 同梱不可（bundled: false）の音源を corpus/.cache/ に取得する
+        # （corpus/fetch_and_verify.py、corpus/README.md「既知のリスク」参照）。
+        # ここで取得しない設計だと、非同梱の音源は常に欠測になり run-corpus の
+        # 欠測処理が一度も本来の目的（取得不能な環境での縮退）で機能せず、
+        # コーパスの多様性を指標算出に反映できない（PR #43 レビュー指摘）。
+        # 取得失敗（レート制限・取得不能な環境）はここで止めず、続く
+        # run-corpus 側の欠測記録に委ねる（Issue #13 完了条件）。
+        id: fetch_corpus
+        continue-on-error: true
+        run: python3 corpus/fetch_and_verify.py
+
       - name: Run corpus (指標ベクトル算出)
         id: run_corpus
         run: |
@@ -97,6 +109,7 @@ jobs:
         # 人間向け整形出力はP0-12b-2（#40）のスコープであり、本ステップはそれを
         # 代替しない（AGENTS.md第8節「先回りして環境を整えない」）。
         env:
+          FETCH_CORPUS_OUTCOME: ${{ steps.fetch_corpus.outcome }}
           RUN_CORPUS_ELAPSED_S: ${{ steps.run_corpus.outputs.elapsed_s }}
           DIFF_CORPUS_ELAPSED_S: ${{ steps.diff_corpus.outputs.elapsed_s }}
           VECTORS_SHA256: ${{ steps.vectors_checksum.outputs.sha256 }}
@@ -111,6 +124,8 @@ jobs:
 
           print("## 指標ベクトル自動出力（P0-13）")
           print()
+          print(f"- fetch corpus audio: {os.environ['FETCH_CORPUS_OUTCOME']}"
+                "（失敗しても run-corpus 側の欠測記録に委ねて続行する）")
           print(f"- run-corpus: {index['summary']} / 所要 {os.environ['RUN_CORPUS_ELAPSED_S']}s")
           print(f"- diff-corpus: {diff['summary']} / 所要 {os.environ['DIFF_CORPUS_ELAPSED_S']}s")
           print(f"- vectors sha256（index.json除く、決定論検証用）: `{os.environ['VECTORS_SHA256']}`")
