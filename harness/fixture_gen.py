@@ -66,6 +66,20 @@ F0_GLIDE_FROM_HZ = 220.0
 F0_GLIDE_TO_HZ = 330.0
 GLIDE_INTERVAL_S: tuple[float, float] = (0.10, 0.40)
 
+# 既知のフォルマント（共振）列: (中心Hz, 帯域幅Hz, ゲイン)。フォルマント軌跡距離（P0-09）の
+# 既知解検証用。テストがこの共振の再現を確認する。
+FORMANT_RESONANCES: list[tuple[float, float, float]] = [
+    (500.0, 70.0, 1.0),
+    (1500.0, 100.0, 0.7),
+    (2500.0, 130.0, 0.4),
+]
+# フォルマント移動: 一方のペアで第2フォルマントを既知量だけ移す（formant_dist の既知解）。
+FORMANT_SHIFT_HZ = 100.0
+# 移動フォルマント: 第2フォルマントが既知区間で既知値へグライド（追跡の既知解）。
+FORMANT_GLIDE_FROM_HZ = 1500.0
+FORMANT_GLIDE_TO_HZ = 1800.0
+FORMANT_GLIDE_INTERVAL_S: tuple[float, float] = (0.15, 0.35)
+
 
 @dataclass
 class FixturePair:
@@ -127,6 +141,45 @@ def _glide_tone(
     for k, amp in enumerate(_HARMONIC_PROFILE, start=1):
         out += amp * np.sin(k * phase)
     return out.reshape(num_s, 1)
+
+
+def _formant_band_signal(
+    center_freqs_hz: np.ndarray,
+    bandwidths_hz: np.ndarray,
+    gains: np.ndarray,
+    rng: np.random.Generator,
+    num_s: int,
+) -> np.ndarray:
+    """時間変化する共振を持つ帯域信号（source-filter的なモデル）を生成する。
+
+    `center_freqs_hz` の各要素は各フォルマントのサンプルごとの中心周波数（Hz）。各フォルマントは
+    中心周波数の周囲に `bandwidths_hz` の帯域幅で5本のトーンをクラスタリングして作る。振幅は中心から
+    帯域半幅に向かってガウス状に減衰し、中心が支配的なピークになる（推定の既知解としてテストが参照）。
+    位相は `rng` から決定論的に取る。
+    """
+    out = np.zeros(num_s)
+    for fc_t, bw, gain in zip(center_freqs_hz, bandwidths_hz, gains):
+        offsets = np.linspace(-bw / 2.0, bw / 2.0, 5)
+        amps = np.exp(-((offsets) / (bw * 0.5)) ** 2.0)
+        for off, a in zip(offsets, amps):
+            phase_offset = float(rng.uniform(0.0, 2.0 * np.pi))
+            phase = _instantaneous_phase(fc_t + off) + phase_offset
+            out += gain * a * np.sin(phase)
+    return out.reshape(num_s, 1)
+
+
+def _static_formant_band(
+    resonances: list[tuple[float, float, float]],
+    rng: np.random.Generator,
+    num_s: int,
+) -> np.ndarray:
+    """固定共振の帯域信号。`resonances` は (center_hz, bandwidth_hz, gain) の列。"""
+    fc = np.tile(
+        np.array([r[0] for r in resonances], dtype=np.float64)[:, None], (1, num_s)
+    )
+    bws = np.array([r[1] for r in resonances], dtype=np.float64)
+    gains = np.array([r[2] for r in resonances], dtype=np.float64)
+    return _formant_band_signal(fc, bws, gains, rng, num_s)
 
 
 def _rms_amp(data: np.ndarray) -> float:
@@ -246,6 +299,56 @@ def _build_pairs(seed: int) -> list[FixturePair]:
         )
     )
 
+    # (g) 既知フォルマント。candidate の第2フォルマントが既知量（FORMANT_SHIFT_HZ）だけ上に移る。
+    formant_res = list(FORMANT_RESONANCES)
+    bws = np.array([r[1] for r in formant_res])
+    gains = np.array([r[2] for r in formant_res])
+    fc_base = [r[0] for r in formant_res]
+    fc_cand = fc_base.copy()
+    fc_cand[1] += FORMANT_SHIFT_HZ
+    candidate_g = _formant_band_signal(
+        np.tile(np.array(fc_cand)[:, None], (1, num_s)), bws, gains, rng, num_s
+    )
+    pairs.append(
+        FixturePair(
+            name="g_formant_shift",
+            target=_static_formant_band(formant_res, rng, num_s),
+            candidate=candidate_g,
+            known={
+                "formant_freqs_target_hz": fc_base,
+                "formant_freqs_candidate_hz": fc_cand,
+                "formant_bw_hz": bws.tolist(),
+                "formant_gain": gains.tolist(),
+                "formant_shift_hz": FORMANT_SHIFT_HZ,
+            },
+        )
+    )
+
+    # (h) 移動フォルマント。第2フォルマントが既知区間で 1500→1800Hz へグライド（追跡の既知解）。
+    fg_from, fg_to = FORMANT_GLIDE_FROM_HZ, FORMANT_GLIDE_TO_HZ
+    glide_from_s, glide_to_s = FORMANT_GLIDE_INTERVAL_S
+    fc_h = np.tile(np.array(fc_base, dtype=np.float64)[:, None], (1, num_s))
+    t_vals = np.arange(num_s) / SAMPLE_RATE
+    mask = (t_vals >= glide_from_s) & (t_vals <= glide_to_s)
+    fc_h[1, mask] = fg_from + (fg_to - fg_from) * (t_vals[mask] - glide_from_s) / (glide_to_s - glide_from_s)
+    fc_h[1, t_vals > glide_to_s] = fg_to
+    candidate_h = _formant_band_signal(fc_h, bws, gains, rng, num_s)
+    pairs.append(
+        FixturePair(
+            name="h_formant_glide",
+            target=_static_formant_band(formant_res, rng, num_s),
+            candidate=candidate_h,
+            known={
+                "formant_freqs_target_hz": fc_base,
+                "formant_f2_glide_from_hz": fg_from,
+                "formant_f2_glide_to_hz": fg_to,
+                "glide_interval_s": [glide_from_s, glide_to_s],
+                "formant_bw_hz": bws.tolist(),
+                "formant_gain": gains.tolist(),
+            },
+        )
+    )
+
     return pairs
 
 
@@ -354,4 +457,9 @@ __all__ = [
     "F0_GLIDE_FROM_HZ",
     "F0_GLIDE_TO_HZ",
     "GLIDE_INTERVAL_S",
+    "FORMANT_RESONANCES",
+    "FORMANT_SHIFT_HZ",
+    "FORMANT_GLIDE_FROM_HZ",
+    "FORMANT_GLIDE_TO_HZ",
+    "FORMANT_GLIDE_INTERVAL_S",
 ]

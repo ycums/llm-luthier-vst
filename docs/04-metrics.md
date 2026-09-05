@@ -102,11 +102,14 @@ JSON。CIとフィッティングループの両方が機械可読に扱える�
     "formant_dist": { "value": 0.0, "missing_reason": null }
   },
   "calc_conditions": {
-    "schema_version": "1.0.0",
+    "schema_version": "1.1.0",
     "fft_sizes": [512, 2048, 8192],
     "band_edges_hz": [0, 200, 800, 2000, 5000, 20000],
     "segment_boundaries_s": { "attack_end_s": 0.02, "transition_end_s": 0.08, "sustain_end_s": 0.45 },
-    "estimation_algorithms": [ { "name": "yin", "version": "n/a" } ]
+    "estimation_algorithms": [
+      { "name": "yin", "version": "n/a" },
+      { "name": "stft-peak-tracking", "version": "1", "n_formants": 3, "frame_length": 1600, "hop_length": 320, "fft_size": 1024, "max_track_gap_hz": 300.0 }
+    ]
   }
 }
 ```
