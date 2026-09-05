@@ -2,8 +2,8 @@
 
 `inspect`（WAVの中身確認）、`generate-fixtures`（既知解テスト用の合成フィクチャ生成、P0-04）、
 `metrics`（全体指標・区間別指標・軌跡指標の一部の算出、P0-05/P0-06/P0-08）、`spectrogram`
-（スペクトグラム画像対の生成、P0-14）の各サブコマンドを提供する。帯域別指標はP0-07、
-フォルマント軌跡距離はP0-09の範囲。
+（スペクトグラム画像対の生成、P0-14）、`run-corpus`（コーパス全体への指標算出の一括実行、
+P0-11）の各サブコマンドを提供する。帯域別指標はP0-07、フォルマント軌跡距離はP0-09の範囲。
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 from harness.audio_io import read_wav
+from harness.corpus_runner import ManifestError, run_corpus
 from harness.fixture_gen import generate_all
 from harness.metrics import DEFAULT_ATTACK_END_S, compute_metrics_vector
 from harness.spectrogram import render_pair
@@ -132,6 +133,26 @@ def _build_parser() -> argparse.ArgumentParser:
         help="差分画像（diff.png）を生成しない",
     )
 
+    run_corpus_parser = subparsers.add_parser(
+        "run-corpus",
+        help=(
+            "マニフェストの全エントリに指標算出を実行し、音源ごとのJSONと"
+            "インデックスJSONを出力先ディレクトリに書き出す（P0-11）"
+        ),
+    )
+    run_corpus_parser.add_argument(
+        "--manifest", type=Path, required=True, help="コーパスのマニフェストJSONのパス"
+    )
+    run_corpus_parser.add_argument(
+        "--out", type=Path, required=True, help="出力先ディレクトリ（作成される）"
+    )
+    run_corpus_parser.add_argument(
+        "--attack-end-s",
+        type=float,
+        default=DEFAULT_ATTACK_END_S,
+        help="アタック区間の終端（秒）。`metrics` サブコマンドと同じ既定値・意味を持つ",
+    )
+
     return parser
 
 
@@ -188,6 +209,24 @@ def _run_spectrogram(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_run_corpus(manifest: Path, out: Path, attack_end_s: float) -> int:
+    try:
+        index = run_corpus(manifest, out, attack_end_s=attack_end_s)
+    except ManifestError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    summary = index["summary"]
+    print(
+        f"entries: {index['entry_count']} "
+        f"(ok={summary['ok']} missing={summary['missing']} error={summary['error']})"
+    )
+    print(f"index: {out / 'index.json'}")
+    # 1件以上が例外で失敗した場合のみ非0（一部失敗）。欠測(missing)は正常系として扱う
+    # （harness/corpus_runner.py モジュールdocstring「終了コードの意味」参照）。
+    return 1 if summary["error"] > 0 else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -206,6 +245,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.command == "spectrogram":
         return _run_spectrogram(args)
+    if args.command == "run-corpus":
+        return _run_run_corpus(args.manifest, args.out, args.attack_end_s)
 
     # サブコマンド未指定時はヘルプを表示して終了する（エラー扱いにはしない）。
     parser.print_help()
