@@ -2,30 +2,30 @@
   "target": "snare_drum_rim",
   "overall": {
     "msstft": {
-      "value": 6.687708435713354,
+      "value": 35.73724454243223,
       "missing_reason": null
     },
     "mfcc": {
-      "value": 578.1366238848935,
+      "value": 713.5905605411881,
       "missing_reason": null
     },
     "loudness_diff_db": {
-      "value": -211.69382518624428,
+      "value": 37.078643871624216,
       "missing_reason": null
     }
   },
   "segments": {
     "attack": {
       "msstft": {
-        "value": 13.370465188746389,
+        "value": 23.624611234118913,
         "missing_reason": null
       },
       "mfcc": {
-        "value": 656.5601009063619,
+        "value": 640.8126425681291,
         "missing_reason": null
       },
       "loudness_diff_db": {
-        "value": -200.53887188211237,
+        "value": 47.919273489344256,
         "missing_reason": null
       }
     },
@@ -77,7 +77,7 @@
       "lo_hz": 0.0,
       "hi_hz": 200.0,
       "error": {
-        "value": 11.413131768824387,
+        "value": 16.393850118589782,
         "missing_reason": null
       }
     },
@@ -85,7 +85,7 @@
       "lo_hz": 200.0,
       "hi_hz": 800.0,
       "error": {
-        "value": 8.943972869896092,
+        "value": 174.27504356513813,
         "missing_reason": null
       }
     },
@@ -93,7 +93,7 @@
       "lo_hz": 800.0,
       "hi_hz": 2000.0,
       "error": {
-        "value": 8.48931035989458,
+        "value": 56.0465889751653,
         "missing_reason": null
       }
     },
@@ -101,7 +101,7 @@
       "lo_hz": 2000.0,
       "hi_hz": 5000.0,
       "error": {
-        "value": 8.087836871568548,
+        "value": 76.66193580521615,
         "missing_reason": null
       }
     },
@@ -109,23 +109,23 @@
       "lo_hz": 5000.0,
       "hi_hz": 20000.0,
       "error": {
-        "value": 6.8221677587230545,
+        "value": 23.28150960519987,
         "missing_reason": null
       }
     }
   ],
   "trajectories": {
     "transient_env_corr": {
-      "value": null,
-      "missing_reason": "振幅包絡の分散がゼロのため相関を算出できない（無音または完全に一定の信号）"
+      "value": 0.0549207572126144,
+      "missing_reason": null
     },
     "f0_dist": {
       "value": null,
       "missing_reason": "target に有声フレームが存在しないためf0軌跡を算出できない"
     },
     "formant_dist": {
-      "value": null,
-      "missing_reason": "target と candidate でフォルマントを追跡できたフレームが重ならないため算出不能"
+      "value": 1398.0391652960527,
+      "missing_reason": null
     }
   },
   "calc_conditions": {

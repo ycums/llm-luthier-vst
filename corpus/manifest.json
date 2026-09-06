@@ -475,8 +475,8 @@
         }
       },
       "known_limitations": null,
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/spoken_hello_manual_v1.json"
     }
   ],
-    "preset_path_note_en": "preset_path (added in schema_version 1.2.0, P1-07 #52): the path to a preset JSON used to render each entry's candidate. Phase 1 has no per-instrument manual presets yet, so all entries share the same preliminary provisional preset (corpus/presets/provisional_v0.json) that renders silence (the engine's DSP is not implemented in P1-06, docs/02). harness/corpus_runner.py invokes luthier-render with this preset at the target's sample rate, then computes metrics against the rendered WAV. The sample-rate policy is recorded in the output vector's calc_conditions.render.sr_mismatch_policy (see docs/04-metrics.schema.json). The former self-comparison seam candidate_path is removed."
+    "preset_path_note_en": "preset_path (added in schema_version 1.2.0, P1-07 #52): the path to a preset JSON used to render each entry's candidate. Phase 1 has no automated fitting yet, so most entries still share the same preliminary provisional preset (corpus/presets/provisional_v0.json) that renders silence (the engine's DSP is not fitted to any target, docs/02). The exception is spoken_hello, which P1-12 (#57) points at a hand-written preset (corpus/presets/spoken_hello_manual_v1.json) exercising all four v0 layers plus the modulation matrix, to satisfy the phase-1 transition condition ('render a golden source from a manual preset'). harness/corpus_runner.py invokes luthier-render with each entry's preset at the target's sample rate, then computes metrics against the rendered WAV. The sample-rate policy is recorded in the output vector's calc_conditions.render.sr_mismatch_policy (see docs/04-metrics.schema.json). The former self-comparison seam candidate_path is removed."
   }
