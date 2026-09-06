@@ -1,0 +1,13 @@
+# C++ 静的解析（clang-tidy）。docs/adr/0010-cpp-lint-tooling.md 参照。
+#
+# 初期セットは clang-analyzer-*（静的解析）と clang-diagnostic-*（コンパイラ
+# 診断）のみ。bugprone-* / performance-* は現時点でノイズが多い
+# （bugprone-easily-swappable-parameters 等）ため入れない。追加は AGENTS.md §8
+# の3回ルール（同種の失敗・手戻りが3回観測された時点）を根拠に行う。
+Checks: 'clang-analyzer-*,clang-diagnostic-*'
+WarningsAsErrors: '*'
+
+# 対象はリポジトリ管理下のソースのみ。FetchContent で取得したサードパーティ
+# （nlohmann/json 等）は対象外（ノイズ源）。HeaderFilterRegex は clang-tidy の
+# ヘッダ診断出力を当該ヘッダに限定する。
+HeaderFilterRegex: 'engine/(core|cli|tests)/'

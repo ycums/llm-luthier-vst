@@ -11,10 +11,12 @@ namespace luthier {
 //
 // docs/03「未知のフィールドを見つけたエンジンはエラーで停止する。黙って無視しない」
 // が要求する「止まる」挙動を、呼び出し側にとって一貫させるためにまとめている
-// （AGENTS.md 第7節「未確定事項の扱い」と同じ精神：それらしく解釈して進めない）。
+// （AGENTS.md
+// 第7節「未確定事項の扱い」と同じ精神：それらしく解釈して進めない）。
 class PresetError : public std::runtime_error {
 public:
-    explicit PresetError(const std::string& message) : std::runtime_error(message) {}
+  explicit PresetError(const std::string &message)
+      : std::runtime_error(message) {}
 };
 
-}  // namespace luthier
+} // namespace luthier
