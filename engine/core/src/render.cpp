@@ -1,10 +1,14 @@
 #include "luthier/render.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <cmath>
+#include <vector>
 
 namespace luthier {
 namespace {
+
+constexpr double kTwoPi = 6.283185307179586476925286766559;
 
 double maxT(const Timeseries& ts, double acc) {
     for (const auto& p : ts.points) acc = std::max(acc, p.t);
@@ -14,6 +18,18 @@ double maxT(const Timeseries& ts, double acc) {
 double maxT(const TimeseriesArray& arr, double acc) {
     for (const auto& ts : arr) acc = maxT(ts, acc);
     return acc;
+}
+
+// Harmonic周期（倍音k）の周波数[Hz]。inharmonicity の補正式は P1-08 の
+// 実装詳細として次の規約を採る（docs/adr/0007「補正式自体はP1-08の実装詳細」、
+// docs/06 Q-016）：
+//   freq_k = f0 * k * (1 + inharmonicity * (k - 1))
+// k=1（基音）は inharmonicity の影響を受けず f0 のまま。k>=2 では
+// inharmonicity>0 のとき周波数が整数倍（k*f0）から正方向へずれ、非整数次
+// （inharmonic）になる。inharmonicity=0 で純調和（k*f0）に一致する。
+inline double partialFrequency(const Timeseries& f0, std::size_t k, double inharmonicity, double t) {
+    const double base = sampleTimeseries(f0, t);
+    return base * static_cast<double>(k) * (1.0 + inharmonicity * (static_cast<double>(k) - 1.0));
 }
 
 }  // namespace
@@ -39,12 +55,32 @@ double computeRenderDurationSeconds(const Preset& preset) {
     return std::max(maxTime, transientDurationS);
 }
 
-std::vector<double> renderSilence(const Preset& preset, double sample_rate_hz) {
+std::vector<double> render(const Preset& preset, double sample_rate_hz) {
     const double durationS = computeRenderDurationSeconds(preset);
-    const auto sampleCount = static_cast<std::size_t>(std::llround(durationS * sample_rate_hz));
-    // v0は4層のDSPを一切実装しない（Issue #51スコープ）ため、`enabled` や
-    // 各パラメータの値に関わらず常に無音を返す。
-    return std::vector<double>(sampleCount, 0.0);
+    const std::size_t sampleCount =
+        static_cast<std::size_t>(std::llround(durationS * sample_rate_hz));
+    std::vector<double> out(sampleCount, 0.0);
+
+    // P1-08はHarmonic層のみ実装（他層はP1-09/10/11、未実装の間は無音に寄与しない）。
+    if (!preset.harmonic.enabled) return out;
+
+    const HarmonicLayer& h = preset.harmonic;
+    const std::size_t numPartials = h.partial_amplitudes.size();
+
+    // 加算合成（docs/adr/0007）：各サンプルで f0 を補間してから、全倍音の
+    // 正弦波を振幅 partial_amplitudes で足す。位相は直接評価（2πft）。乱数・
+    // 履歴状態を持たないため同一バイナリ内でビット決定論的。
+    for (std::size_t n = 0; n < sampleCount; ++n) {
+        const double t = static_cast<double>(n) / sample_rate_hz;
+        double s = 0.0;
+        for (std::size_t k = 1; k <= numPartials; ++k) {
+            const double f = partialFrequency(h.f0, k, h.inharmonicity, t);
+            const double amp = sampleTimeseries(h.partial_amplitudes[k - 1], t);
+            s += amp * std::sin(kTwoPi * f * t);
+        }
+        out[n] = s;
+    }
+    return out;
 }
 
 }  // namespace luthier

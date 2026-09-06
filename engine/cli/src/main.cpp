@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
 
     try {
         const luthier::Preset preset = luthier::loadPreset(presetPath);
-        const std::vector<double> samples = luthier::renderSilence(preset, static_cast<double>(sampleRate));
+        const std::vector<double> samples = luthier::render(preset, static_cast<double>(sampleRate));
         luthier::writeWavFloatMono(outputPath, samples, sampleRate);
     } catch (const luthier::PresetError& e) {
         std::cerr << "エラー: " << e.what() << "\n";

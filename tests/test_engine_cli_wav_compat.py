@@ -104,8 +104,11 @@ def test_rendered_wav_is_readable_by_harness_audio_io(tmp_path: Path) -> None:
     assert buffer.sample_rate == 48000
     assert buffer.channels == 1
     assert buffer.num_samples > 0
-    # v0は4層ともDSP未実装のため常に無音（docs/02「この時点では4層とも音を出さない」）。
-    assert (buffer.data == 0.0).all()
+    # P1-08（#53）で Harmonic 層（加算合成、docs/adr/0007）を実装したため、
+    # minimal preset（harmonic.enabled=true）は正弦音を出す。Transient/Formant
+    # 層は未実装（P1-09/P1-10）で無音のまま。無音かどうかは各層の無効化テスト
+    # （engine/tests/test_render.cpp）で担保する。
+    assert (buffer.data != 0.0).any()
 
 
 def test_engine_stops_on_a_preset_with_an_unknown_field(tmp_path: Path) -> None:
