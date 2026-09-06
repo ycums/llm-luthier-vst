@@ -104,7 +104,7 @@ bool nearRel(double actual, double expected, double relTol) {
 }  // namespace
 
 // ---------------------------------------------------------------------------
-// evaluateTimeseries（docs/03「時系列の表現」）
+// sampleTimeseries（共通の Timeseries 補間、docs/03「時系列の表現」）
 // ---------------------------------------------------------------------------
 
 TEST_CASE("evaluateTimeSeries: point set of one is a constant") {
