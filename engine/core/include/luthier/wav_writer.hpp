@@ -10,7 +10,8 @@ namespace luthier {
 
 class WavWriteError : public std::runtime_error {
 public:
-    explicit WavWriteError(const std::string& message) : std::runtime_error(message) {}
+  explicit WavWriteError(const std::string &message)
+      : std::runtime_error(message) {}
 };
 
 // モノラル・32-bit IEEE float のcanonical WAV（RIFF/WAVE、fmtチャンク＋
@@ -24,8 +25,8 @@ public:
 //
 // `samples` の各値は書き出し時に float（単精度）へ変換する。バイト順は常に
 // リトルエンディアンで書き出す（ホストのエンディアンに関わらず）。
-void writeWavFloatMono(const std::filesystem::path& path,
-                       const std::vector<double>& samples,
+void writeWavFloatMono(const std::filesystem::path &path,
+                       const std::vector<double> &samples,
                        std::uint32_t sample_rate_hz);
 
-}  // namespace luthier
+} // namespace luthier
