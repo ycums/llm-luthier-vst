@@ -415,6 +415,7 @@ def test_cli_metrics_subcommand_outputs_valid_json(fixtures) -> None:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=True,
     )
 
@@ -444,6 +445,7 @@ def test_cli_metrics_subcommand_accepts_segment_boundary_flags(fixtures) -> None
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=True,
     )
 
@@ -476,6 +478,7 @@ def test_cli_metrics_subcommand_is_bit_exact_across_processes(fixtures) -> None:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return result.stdout
