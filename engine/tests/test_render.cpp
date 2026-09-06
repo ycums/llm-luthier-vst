@@ -133,17 +133,28 @@ TEST_CASE("render of multiple constant partials sums their sine components") {
 // ---------------------------------------------------------------------------
 // f0 が時系列として効く（グライド）：線形グライドが正しく追従する
 // ---------------------------------------------------------------------------
-TEST_CASE("render follows a time-varying f0 (glide) through linear interp") {
+TEST_CASE("render f0 tracks a time-varying f0 (glide) with instantaneous freq f0(t)") {
+    // 位相の独立な解析期待値：f0 が時間変化するとき出力の瞬間周波数は f0(t) に
+    // 一致すべきであり、位相φ(t) = 2π·∫₀ᵗ f(τ)dτ で表される。
+    //   線形グライド f(τ) = f0s + (f0e - f0s)·τ/dur の ∫ の閉形式は
+    //   φ(t) = 2π·( f0s·t + (f0e-f0s)/(2·dur)·t² )
+    // である（単なる f(t)·t ではなく、その積分）。これは実装（位相積分）とは独立に
+    // 解析的に導ける式であり、実装式 sin(2π·f(t)·t) を複写していない。
+    //   ※f(t)·t を位相に入れた誤実装は、瞬間周波数が f(t)+t·f'(t) へオーバー
+    //   シュートし、本期待値と最大 ~2.0 差で乖離するため、本テストは確実に検出する。
     const double fs = 48000.0;
     const double dur = 0.05;  // transient.duration と一致
+    const double fStart = 220.0;
+    const double fEnd = 440.0;
     Preset preset = parsePreset(harmonicPresetJson(
-        {"linear", {{0.0, 220.0}, {dur, 440.0}}},
+        {"linear", {{0.0, fStart}, {dur, fEnd}}},
         {{"linear", {{0.0, 1.0}}}},
         0.0, dur * 1000.0));
     auto samples = render(preset, fs);
     checkAllAgainst(samples, fs, [&](double t, std::size_t) {
-        const double f = 220.0 + (440.0 - 220.0) * (t / dur);  // 解析的グライド
-        return std::sin(kTwoPi * f * t);
+        // 位相積分の閉形式：φ(t) = 2π·( fStart·t + (fEnd-fStart)/(2·dur)·t² )
+        const double phi = kTwoPi * (fStart * t + ((fEnd - fStart) / (2.0 * dur)) * t * t);
+        return std::sin(phi);
     });
 }
 
