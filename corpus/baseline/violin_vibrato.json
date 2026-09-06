@@ -2,30 +2,30 @@
   "target": "violin_vibrato",
   "overall": {
     "msstft": {
-      "value": 6.117671277804317,
+      "value": 36.3307291276841,
       "missing_reason": null
     },
     "mfcc": {
-      "value": 600.9872017720685,
+      "value": 687.8783750434092,
       "missing_reason": null
     },
     "loudness_diff_db": {
-      "value": -220.18744256791766,
+      "value": 28.58502658113567,
       "missing_reason": null
     }
   },
   "segments": {
     "attack": {
       "msstft": {
-        "value": 0.0,
+        "value": 36.98896804858319,
         "missing_reason": null
       },
       "mfcc": {
-        "value": 0.0,
+        "value": 1280.4566435727825,
         "missing_reason": null
       },
       "loudness_diff_db": {
-        "value": 0.0,
+        "value": 248.45814536229483,
         "missing_reason": null
       }
     },
@@ -77,7 +77,7 @@
       "lo_hz": 0.0,
       "hi_hz": 200.0,
       "error": {
-        "value": 8.918324940961769,
+        "value": 18.012349919909543,
         "missing_reason": null
       }
     },
@@ -85,7 +85,7 @@
       "lo_hz": 200.0,
       "hi_hz": 800.0,
       "error": {
-        "value": 8.442559027196218,
+        "value": 174.8266647581825,
         "missing_reason": null
       }
     },
@@ -93,7 +93,7 @@
       "lo_hz": 800.0,
       "hi_hz": 2000.0,
       "error": {
-        "value": 8.155021470763305,
+        "value": 56.65480939397887,
         "missing_reason": null
       }
     },
@@ -101,7 +101,7 @@
       "lo_hz": 2000.0,
       "hi_hz": 5000.0,
       "error": {
-        "value": 8.082572705153568,
+        "value": 76.77150528196447,
         "missing_reason": null
       }
     },
@@ -109,23 +109,23 @@
       "lo_hz": 5000.0,
       "hi_hz": 20000.0,
       "error": {
-        "value": 6.069755376154707,
+        "value": 24.0355092885592,
         "missing_reason": null
       }
     }
   ],
   "trajectories": {
     "transient_env_corr": {
-      "value": null,
-      "missing_reason": "振幅包絡の分散がゼロのため相関を算出できない（無音または完全に一定の信号）"
+      "value": -0.054815884485178476,
+      "missing_reason": null
     },
     "f0_dist": {
-      "value": null,
-      "missing_reason": "candidate に有声フレームが存在しないためf0軌跡を算出できない"
+      "value": 47.369738839890324,
+      "missing_reason": null
     },
     "formant_dist": {
-      "value": null,
-      "missing_reason": "target と candidate でフォルマントを追跡できたフレームが重ならないため算出不能"
+      "value": 1437.2975419207316,
+      "missing_reason": null
     }
   },
   "calc_conditions": {
