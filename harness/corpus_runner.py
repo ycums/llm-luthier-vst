@@ -200,7 +200,10 @@ def _run_one(
         retrieval = entry.get("retrieval") or "取得手順は corpus/manifest.json を参照"
         reason = f"target音源が手元に存在しない: {target_path}（{retrieval}）"
         vector = build_missing_metrics_vector(entry_id, reason, **metric_kwargs)
-        return vector, "missing"
+        preset_path = repo_root / entry["preset_path"]
+        return _attach_render_info(
+            vector, "luthier-render", str(entry["preset_path"]), None
+        ), "missing"
 
     # プリセットパスを解決（必須。`preset_path` は P1-07 で追加されたフィールド）。
     preset_path = repo_root / entry["preset_path"]
@@ -223,11 +226,12 @@ def _run_one(
         sample_rate_hz = read_sample_rate(target_path)
         _render(render_cmd, preset_path, rendered_wav, sample_rate_hz)
         vector = compute_metrics_vector(target_path, rendered_wav, **metric_kwargs)
-    except (OSError, RenderError) as exc:
+    except (OSError, RenderError, subprocess.TimeoutExpired) as exc:
         reason = f"レンダ失敗: {type(exc).__name__}: {exc}"
         vector = build_missing_metrics_vector(entry_id, reason, **metric_kwargs)
+        # タイムアウトもレンダ失敗。SRは確定していないためNoneを記録する（決定論を保つ）。
         return _attach_render_info(
-            vector, "luthier-render", str(entry["preset_path"]), None
+            vector, "luthier-render", str(entry["preset_path"]), sample_rate_hz
         ), "error"
     except Exception as exc:  # noqa: BLE001 - 1件の失敗で全体を止めないため捕捉して記録する
         reason = f"指標算出が例外で失敗: {type(exc).__name__}: {exc}"

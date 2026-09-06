@@ -247,6 +247,9 @@ def test_missing_entry_is_recorded_as_fully_missing_metrics_vector(
     vector = json.loads((out_dir / "missing_entry.json").read_text(encoding="utf-8"))
     assert vector["overall"]["msstft"]["value"] is None
     assert "手元に存在しない" in vector["overall"]["msstft"]["missing_reason"]
+    # target欠測でも render情報は一貫して記録される（#52、レビュー対応 S-004 追補）。
+    assert vector["calc_conditions"]["render"]["preset_path"] == "corpus/presets/preset.json"
+    assert vector["calc_conditions"]["render"]["sample_rate_hz"] is None
 
 
 def test_error_entry_is_recorded_with_render_failure_in_missing_reason(
