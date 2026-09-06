@@ -1,15 +1,18 @@
 // docs/02-engine-spec.md「実装上の制約」（決定論・サンプルレート非依存）と、
-// docs/03「meta はエンジンの動作に影響してはならない」（Issue #51 完了条件）の
-// テスト。加えて Harmonic / Body 層（加算合成、docs/adr/0007）が、既知の
-// パラメータから解析的に期待される信号（既知の倍音構成・既知のf0軌跡）を
-// 出すことを検証する（Issue #53 完了条件・エビデンス要件 Q-013）。
+// docs/03「meta はエンジンの動作に影響してはならない」（Issue #51 完了条件）のテスト。
+// 加えて、統合したレンダパイプライン（P1-08 Harmonic 加算合成 / P1-09 Transient/
+// Noise、docs/adr/0007・0009）が既知のパラメータから解析的に期待される信号を出す
+// ことを検証する（Issue #53/#54 完了条件・エビデンス要件 Q-013）。
 //
-// Transient / Formant 層は P1-08 では未実装（スコープ外、P1-09/P1-10）で常に
-// 無音に寄与しないため、本ファイルの検証対象は Harmonic 層のみである。
+// このファイルは、並列実装の3ブランチ（P1-08/P1-09）それぞれが独立に書き換えた
+// test_render.cpp を、スタック統合（P1-09 を P1-08 に積む）の衝突解消で1つに併合した
+// もの。両者のテストをすべて保持し、重複する名前（allZero ヘルパ、computeRenderDuration
+// の同一テスト）は整理して統合した。
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -23,28 +26,52 @@
 
 using Catch::Approx;
 using luthier::computeRenderDurationSeconds;
+using luthier::Interp;
 using luthier::parsePreset;
 using luthier::Preset;
 using luthier::render;
+using luthier::renderSilence;
+using luthier::renderTransient;
 using luthier::testfixtures::minimalValidPreset;
+using luthier::Timeseries;
+using luthier::TimeseriesArray;
+using luthier::TimeseriesPoint;
+using luthier::TransientLayer;
 
 namespace {
 
-// 解析検証で使う 2π の定数。実装（render.cpp）と同じ値から導出する。
+// Harmonic 解析検証で使う 2π の定数。実装（render.cpp）と同じ値から導出する。
 constexpr double kTwoPi = 6.283185307179586476925286766559;
 
-// 絶対許容誤差。既知解フィクスチャとの一致を判定する。
-// std::sin の計算は規格上コンパイラ（libm）間で最終桁が異なることがありうる
-// （docs/02「決定論」の範囲：同一バイナリ内のビット一致は保証し、コンパイラ間
-// のビット一致は保証しない、P1-08 のPR本文を参照）。その差は相対 ~1e-15 程度
-// であり、絶対値1e-6は周波数・倍音・補間の取り違えという実装誤りとは明確に
-// 区別できる十分に小さい閾値である。
+// 絶対許容誤差。既知解フィクスチャとの一致を判定する。std::sin の計算は規格上
+// コンパイラ（libm）間で最終桁が異なりうる（docs/02「決定論」：同一バイナリ内の
+// ビット一致は保証し、コンパイラ間のビット一致は保証しない、P1-08 のPR本文）。その差
+// は相対 ~1e-15 程度であり、絶対値1e-6は周波数・倍音・補間の取り違えという実装誤りと
+// 明確に区別できる十分に小さい閾値である。
 constexpr double kAbsTol = 1e-6;
 
-// テスト用プリセット部品（Timeseriesの仕様）。
+bool allZero(const std::vector<double>& samples) {
+    return std::all_of(samples.begin(), samples.end(), [](double s) { return s == 0.0; });
+}
+
+bool anyNonZero(const std::vector<double>& s) {
+    for (double x : s)
+        if (x != 0.0) return true;
+    return false;
+}
+
+double segmentRms(const std::vector<double>& s, std::size_t begin, std::size_t end) {
+    if (end <= begin || end > s.size()) return 0.0;
+    double acc = 0.0;
+    for (std::size_t i = begin; i < end; ++i) acc += s[i] * s[i];
+    return std::sqrt(acc / static_cast<double>(end - begin));
+}
+
+// --- Harmonic テスト用のプリセット構築 ---
+
 struct TsSpec {
     std::string interp = "linear";
-    std::vector<std::pair<double, double>> pts;  // (t, v)
+    std::vector<std::pair<double, double>> pts;
 };
 
 nlohmann::json tsJson(const std::string& unit, const TsSpec& spec) {
@@ -61,9 +88,8 @@ nlohmann::json tsJson(const std::string& unit, const TsSpec& spec) {
     return j;
 }
 
-// Harmonic 層だけを意図どおりに構成したプリセット。transient / formant は
-// 未実装層のため duration のみレンダ長決定に使う（transient.enabled=false で
-// 出力には寄与しないことを別テストで保証）。
+// Harmonic 層だけを意図どおりに構成したプリセット。transient は duration のみ
+// レンダ長決定に使う（transient.enabled=false で出力には寄与しない）。
 nlohmann::json harmonicPresetJson(const TsSpec& f0, const std::vector<TsSpec>& partials,
                                   double inharmonicity, double duration_ms) {
     nlohmann::json j = minimalValidPreset();
@@ -79,8 +105,26 @@ nlohmann::json harmonicPresetJson(const TsSpec& f0, const std::vector<TsSpec>& p
     return j;
 }
 
-// 全サンプルを解析的に期待される値と絶対誤差で照合する。
-// `expected` は (t, n) -> double の関数。
+Timeseries dbBand(std::vector<std::pair<double, double>> pts) {
+    Timeseries t;
+    t.unit = "db";
+    t.interp = Interp::Linear;
+    for (auto& kv : pts) t.points.push_back(TimeseriesPoint{kv.first, kv.second});
+    return t;
+}
+
+TransientLayer singleBandLayer(double durationMs, double gainDb, std::int64_t seed,
+                               const Timeseries& env) {
+    TransientLayer t;
+    t.enabled = true;
+    t.duration_ms = durationMs;
+    t.gain_db = gainDb;
+    t.seed = seed;
+    t.spectral_envelope.push_back(env);
+    return t;
+}
+
+// 全サンプルを解析的に期待される値と絶対誤差で照合する。`expected` は (t, n) -> double。
 template <typename F>
 void checkAllAgainst(const std::vector<double>& samples, double sampleRate, F expected,
                      double tol = kAbsTol) {
@@ -95,15 +139,71 @@ void checkAllAgainst(const std::vector<double>& samples, double sampleRate, F ex
     }
 }
 
-bool allZero(const std::vector<double>& samples) {
-    return std::all_of(samples.begin(), samples.end(), [](double s) { return s == 0.0; });
-}
-
 }  // namespace
 
 // ---------------------------------------------------------------------------
-// 基本：単一倍音の純正弦波（定数 f0・定数振幅）
+// renderSilence：参照無音の維持（P1-09）
 // ---------------------------------------------------------------------------
+
+TEST_CASE("renderSilence produces only zero samples regardless of enabled flags") {
+    nlohmann::json j = minimalValidPreset();
+    Preset preset = parsePreset(j);
+    auto samples = renderSilence(preset, 44100.0);
+    REQUIRE_FALSE(samples.empty());
+    REQUIRE(allZero(samples));
+
+    j["layers"]["transient"]["enabled"] = false;
+    j["layers"]["harmonic"]["enabled"] = false;
+    j["layers"]["formant"]["enabled"] = false;
+    Preset disabledPreset = parsePreset(j);
+    auto disabledSamples = renderSilence(disabledPreset, 44100.0);
+    REQUIRE(disabledSamples == samples);
+}
+
+TEST_CASE("renderSilence is deterministic across repeated calls (same preset, same seed)") {
+    Preset preset = parsePreset(minimalValidPreset());
+    auto first = renderSilence(preset, 44100.0);
+    auto second = renderSilence(preset, 44100.0);
+    REQUIRE(first == second);
+}
+
+TEST_CASE("renderSilence sample count scales with sample rate (sample-rate independence)") {
+    Preset preset = parsePreset(minimalValidPreset());
+    const double durationS = computeRenderDurationSeconds(preset);
+    REQUIRE(durationS > 0.0);
+
+    for (double sr : {22050.0, 44100.0, 48000.0, 96000.0}) {
+        auto samples = renderSilence(preset, sr);
+        const auto expectedCount = static_cast<std::size_t>(std::llround(durationS * sr));
+        REQUIRE(samples.size() == expectedCount);
+        REQUIRE(allZero(samples));
+    }
+}
+
+TEST_CASE("renderSilence output does not depend on meta content") {
+    nlohmann::json j1 = minimalValidPreset();
+    nlohmann::json j2 = minimalValidPreset();
+    j2["meta"]["source"] = "totally_different_source.wav";
+    j2["meta"]["generated_by"] = "some-other-tool";
+    j2["meta"]["iteration"] = 42;
+
+    Preset p1 = parsePreset(j1);
+    Preset p2 = parsePreset(j2);
+    REQUIRE(renderSilence(p1, 44100.0) == renderSilence(p2, 44100.0));
+    REQUIRE(computeRenderDurationSeconds(p1) == computeRenderDurationSeconds(p2));
+}
+
+TEST_CASE("computeRenderDurationSeconds accounts for transient.duration") {
+    nlohmann::json j = minimalValidPreset();
+    j["layers"]["transient"]["duration"] = 5000.0;
+    Preset preset = parsePreset(j);
+    REQUIRE(computeRenderDurationSeconds(preset) == 5.0);
+}
+
+// ---------------------------------------------------------------------------
+// Harmonic / Body 層（加算合成、P1-08 #53）：解析検証
+// ---------------------------------------------------------------------------
+
 TEST_CASE("render of a single constant partial is a pure sine at f0") {
     const double fs = 44100.0;
     Preset preset = parsePreset(harmonicPresetJson(
@@ -114,9 +214,6 @@ TEST_CASE("render of a single constant partial is a pure sine at f0") {
     });
 }
 
-// ---------------------------------------------------------------------------
-// 倍音構成：N倍音の和が、各倍音の振幅比どおりに合成される
-// ---------------------------------------------------------------------------
 TEST_CASE("render of multiple constant partials sums their sine components") {
     const double fs = 44100.0;
     const double a1 = 0.8, a2 = 0.5;
@@ -130,20 +227,9 @@ TEST_CASE("render of multiple constant partials sums their sine components") {
     });
 }
 
-// ---------------------------------------------------------------------------
-// f0 が時系列として効く（グライド）：線形グライドが正しく追従する
-// ---------------------------------------------------------------------------
 TEST_CASE("render f0 tracks a time-varying f0 (glide) with instantaneous freq f0(t)") {
-    // 位相の独立な解析期待値：f0 が時間変化するとき出力の瞬間周波数は f0(t) に
-    // 一致すべきであり、位相φ(t) = 2π·∫₀ᵗ f(τ)dτ で表される。
-    //   線形グライド f(τ) = f0s + (f0e - f0s)·τ/dur の ∫ の閉形式は
-    //   φ(t) = 2π·( f0s·t + (f0e-f0s)/(2·dur)·t² )
-    // である（単なる f(t)·t ではなく、その積分）。これは実装（位相積分）とは独立に
-    // 解析的に導ける式であり、実装式 sin(2π·f(t)·t) を複写していない。
-    //   ※f(t)·t を位相に入れた誤実装は、瞬間周波数が f(t)+t·f'(t) へオーバー
-    //   シュートし、本期待値と最大 ~2.0 差で乖離するため、本テストは確実に検出する。
     const double fs = 48000.0;
-    const double dur = 0.05;  // transient.duration と一致
+    const double dur = 0.05;
     const double fStart = 220.0;
     const double fEnd = 440.0;
     Preset preset = parsePreset(harmonicPresetJson(
@@ -152,19 +238,14 @@ TEST_CASE("render f0 tracks a time-varying f0 (glide) with instantaneous freq f0
         0.0, dur * 1000.0));
     auto samples = render(preset, fs);
     checkAllAgainst(samples, fs, [&](double t, std::size_t) {
-        // 位相積分の閉形式：φ(t) = 2π·( fStart·t + (fEnd-fStart)/(2·dur)·t² )
         const double phi = kTwoPi * (fStart * t + ((fEnd - fStart) / (2.0 * dur)) * t * t);
         return std::sin(phi);
     });
 }
 
-// ---------------------------------------------------------------------------
-// partial_amplitudes が時系列×N倍音で効く：時間変化する振幅比
-// ---------------------------------------------------------------------------
 TEST_CASE("time-varying partial amplitude alters the rendered level") {
     const double fs = 44100.0;
     const double dur = 0.05;
-    // 1倍音は一定（定常）、2倍音は t=0 で振幅0 → t=dur で1.0 へ線形増加。
     Preset preset = parsePreset(harmonicPresetJson(
         {"linear", {{0.0, 220.0}}},
         {{"linear", {{0.0, 1.0}}}, {"linear", {{0.0, 0.0}, {dur, 1.0}}}},
@@ -176,28 +257,21 @@ TEST_CASE("time-varying partial amplitude alters the rendered level") {
     });
 }
 
-// ---------------------------------------------------------------------------
-// inharmonicity：非整数次倍数のずれ（スカラー補正係数）
-// ---------------------------------------------------------------------------
 TEST_CASE("inharmonicity shifts non-fundamental partials off integer multiples") {
     const double fs = 44100.0;
     const double inh = 0.5;
-    // 倍音2: 理想 2*f0=440Hz → 補正後 2*f0*(1+inh*(2-1)) = 660Hz。
     Preset preset = parsePreset(harmonicPresetJson(
         {"linear", {{0.0, 220.0}}},
         {{"linear", {{0.0, 0.5}}}, {"linear", {{0.0, 0.5}}}},
         inh, 50.0));
     auto samples = render(preset, fs);
     checkAllAgainst(samples, fs, [&](double t, std::size_t) {
-        const double f1 = 220.0 * 1.0 * (1.0 + inh * 0.0);             // = 220
-        const double f2 = 220.0 * 2.0 * (1.0 + inh * (2.0 - 1.0));    // = 660
+        const double f1 = 220.0 * 1.0 * (1.0 + inh * 0.0);
+        const double f2 = 220.0 * 2.0 * (1.0 + inh * (2.0 - 1.0));
         return 0.5 * std::sin(kTwoPi * f1 * t) + 0.5 * std::sin(kTwoPi * f2 * t);
     });
 }
 
-// ---------------------------------------------------------------------------
-// 決定論・サンプルレート非依存・enabled=false・meta非依存
-// ---------------------------------------------------------------------------
 TEST_CASE("render with harmonic disabled is silent (layer contributes nothing)") {
     nlohmann::json j = minimalValidPreset();
     j["layers"]["transient"]["enabled"] = false;
@@ -239,9 +313,104 @@ TEST_CASE("render output does not depend on meta content") {
     REQUIRE(render(p1, 44100.0) == render(p2, 44100.0));
 }
 
-TEST_CASE("computeRenderDurationSeconds accounts for transient.duration") {
+// ---------------------------------------------------------------------------
+// Transient / Noise 層（P1-09 #54）
+// ---------------------------------------------------------------------------
+
+TEST_CASE("renderTransient: enabled single-band produces non-zero samples of the duration's length") {
+    const auto s = renderTransient(
+        singleBandLayer(3000.0, 0.0, 7, dbBand({{0.0, 0.0}, {3.0, 0.0}})), 44100.0);
+    REQUIRE(s.size() == static_cast<std::size_t>(std::llround(3.0 * 44100.0)));
+    REQUIRE(anyNonZero(s));
+    double mean = 0.0;
+    for (double v : s) mean += v;
+    mean /= static_cast<double>(s.size());
+    REQUIRE(std::fabs(mean) < 1e-3);
+}
+
+TEST_CASE("Transient: gain (dB) scales the output by the exact linear amplitude ratio") {
+    const auto env = dbBand({{0.0, 0.0}, {3.0, 0.0}});
+    auto hi = renderTransient(singleBandLayer(3000.0, 0.0, 3, env), 44100.0);
+    auto lo = renderTransient(singleBandLayer(3000.0, -12.0, 3, env), 44100.0);
+    REQUIRE(hi.size() == lo.size());
+    REQUIRE(hi.size() == 132300u);
+    const double ratio = std::pow(10.0, -12.0 / 20.0);
+    for (std::size_t i = 0; i < hi.size(); ++i) {
+        const double expected = hi[i] * ratio;
+        REQUIRE(std::fabs(lo[i] - expected) <= 1e-6 * std::max(1.0, std::fabs(expected)));
+    }
+}
+
+TEST_CASE("Transient: same seed is reproducible; different seed yields different noise") {
+    auto env = dbBand({{0.0, 0.0}, {3.0, 0.0}});
+    auto a1 = renderTransient(singleBandLayer(2000.0, 0.0, 0, env), 44100.0);
+    auto a2 = renderTransient(singleBandLayer(2000.0, 0.0, 0, env), 44100.0);
+    REQUIRE(a1 == a2);
+    REQUIRE(anyNonZero(a1));
+
+    auto b = renderTransient(singleBandLayer(2000.0, 0.0, 1, env), 44100.0);
+    REQUIRE_FALSE(a1 == b);
+    REQUIRE(a1.size() == b.size());
+}
+
+TEST_CASE("Transient: disabled layer contributes nothing (empty vector)") {
+    TransientLayer t =
+        singleBandLayer(3000.0, 0.0, 5, dbBand({{0.0, 0.0}, {3.0, 0.0}}));
+    t.enabled = false;
+    const auto s = renderTransient(t, 44100.0);
+    REQUIRE(s.empty());
+}
+
+TEST_CASE("Transient: spectral envelope varies over time (attack ramp)") {
+    const double durMs = 4000.0;
+    auto env = dbBand({{0.0, -60.0}, {durMs / 1000.0, 0.0}});
+    const auto s =
+        renderTransient(singleBandLayer(durMs, 0.0, 11, std::move(env)), 44100.0);
+    const std::size_t n = s.size();
+    const std::size_t q = n / 4;
+    const double earlyRms = segmentRms(s, 0, q);
+    const double lateRms = segmentRms(s, 3 * q, 4 * q);
+    REQUIRE(std::isfinite(earlyRms));
+    REQUIRE(std::isfinite(lateRms));
+    REQUIRE(lateRms > 100.0 * earlyRms);
+}
+
+TEST_CASE("Transient: multiple bands sum into the output") {
+    TransientLayer t;
+    t.enabled = true;
+    t.duration_ms = 2000.0;
+    t.gain_db = 0.0;
+    t.seed = 9;
+    t.spectral_envelope.push_back(dbBand({{0.0, 0.0}, {2.0, 0.0}}));
+    t.spectral_envelope.push_back(dbBand({{0.0, 0.0}, {2.0, 0.0}}));
+    const auto s = renderTransient(t, 44100.0);
+    REQUIRE(s.size() == static_cast<std::size_t>(std::llround(2.0 * 44100.0)));
+    REQUIRE(anyNonZero(s));
+}
+
+TEST_CASE("render: enabled transient contributes, disabled transient stays silent") {
     nlohmann::json j = minimalValidPreset();
-    j["layers"]["transient"]["duration"] = 5000.0;  // 5秒。全Timeseriesはt=0のみ。
-    Preset preset = parsePreset(j);
-    REQUIRE(computeRenderDurationSeconds(preset) == 5.0);
+    j["layers"]["harmonic"]["enabled"] = false;
+    j["layers"]["formant"]["enabled"] = false;
+    j["layers"]["transient"]["enabled"] = true;
+    Preset enabled = parsePreset(j);
+
+    const auto snd = render(enabled, 44100.0);
+    REQUIRE_FALSE(snd.empty());
+    REQUIRE(anyNonZero(snd));
+
+    j["layers"]["transient"]["enabled"] = false;
+    Preset disabled = parsePreset(j);
+    const auto sil = render(disabled, 44100.0);
+    REQUIRE(sil.size() == snd.size());
+    REQUIRE(allZero(sil));
+}
+
+TEST_CASE("Transient: deterministic and duration-based across sample rates") {
+    auto env = dbBand({{0.0, 0.0}, {0.25, -20.0}, {0.5, -3.0}});
+    for (double sr : {22050.0, 44100.0, 48000.0, 96000.0}) {
+        const auto s = renderTransient(singleBandLayer(500.0, 0.0, 4, env), sr);
+        REQUIRE(s.size() == static_cast<std::size_t>(std::llround(0.5 * sr)));
+        REQUIRE(anyNonZero(s));
+    }
 }
