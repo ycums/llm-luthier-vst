@@ -133,7 +133,7 @@ void requireAllApprox(const std::vector<double>& samples, double sampleRate,
 // LFO / Envelope の source 評価（evalModulationSource）
 // ---------------------------------------------------------------------------
 
-TEST_CASE("LFO sine source evaluates to waveform×depth (sample-rate free)") {
+TEST_CASE("LFO sine source evaluates to waveform over depth (sample-rate free)") {
     const auto src = makeLfoSource("src1", "sine", 1.0, 0.5);
     // phase = 2π·1.0·t。sin が位相の整数倍で真の 0 を返さないのは浮動小数点の自然な
     // 挙動（~1e-17）のため、0 への一致はマージン付きで判定する。
@@ -180,7 +180,7 @@ TEST_CASE("Envelope source linearly interpolates breakpoints with constant extra
 // buildModulationOffsets（疎行列、加算量 = source × depth）
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Envelope constant source adds source×depth to the destination") {
+TEST_CASE("Envelope constant source adds source*depth to the destination") {
     const auto env = makeEnvSource("e", {{0.0, 2.0}});  // constant value 2.0
     const Preset p = parsePreset(presetWithRoute("harmonic.f0", env, 0.5, "linear"));
     const auto offsets = buildModulationOffsets(p, 44100.0, 100);
