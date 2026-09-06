@@ -268,3 +268,34 @@ TEST_CASE("render: route to a disabled layer produces no contribution (stays sil
     REQUIRE_FALSE(samples.empty());
     REQUIRE(allZero(samples));
 }
+
+// Q-018 item4「*_db（transient.gain 等）は dB 値に加算してから振幅へ変換」の単体検証。
+// transient.gain への変調が dB 空間で加算されること（振幅の乗算 10^(mod/20) になること）を、
+// renderTransient のオフセット経路で確認する。
+TEST_CASE("transient.gain modulation is added in dB (amplitude scales by 10^(depth/20))") {
+    const auto env = makeEnvSource("e", {{0.0, 1.0}});  // 定数 1.0
+    nlohmann::json j = presetWithRoute("transient.gain", env, 12.0, "linear");  // depth 12 dB
+    j["layers"]["transient"]["enabled"] = true;             // transient を有効化（既定は有効）
+    j["layers"]["harmonic"]["enabled"] = false;
+    j["layers"]["formant"]["enabled"] = false;
+    const Preset p = parsePreset(j);
+
+    // 変調なし baseline：同じプリセットに modulation を剥がしたもの。
+    nlohmann::json jBase = j;
+    jBase.erase("modulation");
+    const Preset pBase = parsePreset(jBase);
+
+    const double fs = 44100.0;
+    const auto base = render(pBase, fs);
+    const auto modd = render(p, fs);
+    REQUIRE_FALSE(base.empty());
+    REQUIRE(base.size() == modd.size());
+
+    // 変調量 = 定数1.0 × depth12 = 12 dB → 振幅は 10^(12/20) 倍になる。
+    const double ratioExpected = std::pow(10.0, 12.0 / 20.0);
+    for (std::size_t i = 0; i < base.size(); ++i) {
+        if (std::fabs(base[i]) < 1e-12) continue;  // 無音近傍は比率が不定のため飛ばす
+        const double got = modd[i] / base[i];
+        REQUIRE(std::fabs(got - ratioExpected) <= 1e-6 * ratioExpected);
+    }
+}
