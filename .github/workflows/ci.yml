@@ -74,4 +74,11 @@ jobs:
       - name: Lint (ruff)
         run: uv run ruff check .
       - name: Test (pytest)
+        # ハーネスCLI（python -m harness / python -m harness metrics）は日本語をstdoutに
+        # 出力する。WindowsランナーのPython既定エンコーディングはcp1252のため、そのまま
+        # 動かすと UnicodeEncodeError / UnicodeDecodeError（charmap）で落ちる
+        # （test_cli.py / test_metrics.py の3件。エンジンとは無関係のハーネス側の文字コード
+        # 問題）。PYTHONIOENCODING=utf-8 を設定してUTF-8で扱わせる。
         run: uv run pytest -q
+        env:
+          PYTHONIOENCODING: utf-8
