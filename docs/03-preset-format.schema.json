@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ycums/llm-luthier-vst/blob/main/docs/03-preset-format.schema.json",
+  "title": "Intermediate Preset",
+  "description": "docs/03-preset-format.md が定義する中間プリセット形式（LLM側とバイナリ側の唯一の境界面）の機械可読なスキーマ。未知のフィールドは additionalProperties:false によりすべての階層で不許可とする（docs/03『未知のフィールドを見つけたエンジンはエラーで停止する』）。バージョニングは docs/03『バージョニング』のセマンティックバージョニングに従う：フィールド追加は minor、削除・意味変更・必須化は major、説明の修正のみは patch。本スキーマ自体の現在のバージョンは 0.1.0 であり、各プリセットインスタンスが宣言する format_version と対応する（このスキーマ自身の版を別フィールドに二重記録しない）。docs/03『未確定』（spectral_envelope の帯域分割方式・partial_amplitudes の倍音数上限・時系列の点数上限）は意図的に未制約のまま残す：これらに上限値を課すと AGENTS.md 第6節が禁じる『未確定事項を推測で埋める』ことになる。ルーティング先パスの実在チェック（docs/03『存在しないパスもエラー』）や、modulation の疎行列上限（source 4 × destination 8、docs/02）のうち distinct な destination 数の厳密な計数は、プリセット単体の構造検証では表現できない意味検証であり、エンジン実装側（P1-06）の責務とする。本スキーマでは sources の数（最大4）と routes の配列長（sources上限4 × destination上限8 = 32）という構造的に表現できる上限のみを課す。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_version", "engine_spec_version", "layers"],
+  "properties": {
+    "format_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "この形式（docs/03-preset-format.md）自体のバージョン。"
+    },
+    "engine_spec_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "エンジン能力仕様（docs/02-engine-spec.md）のバージョン。形式は変えずエンジン能力だけが増えるケースがあるため format_version とは別に持つ。"
+    },
+    "meta": {
+      "type": "object",
+      "description": "デバッグとトレーサビリティ専用（docs/03『meta はエンジンの動作に影響してはならない』）。エンジンの解釈対象ではないため、他の階層と異なり未知キーを許容する（additionalProperties を false にしない）。例：source（生成元の音源ファイル名）、generated_by（生成ツール）、iteration（フィッティング反復回数）。",
+      "properties": {
+        "source": { "type": "string" },
+        "generated_by": { "type": "string" },
+        "iteration": { "type": "integer" }
+      }
+    },
+    "layers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transient", "harmonic", "formant"],
+      "properties": {
+        "transient": { "$ref": "#/$defs/transient_layer" },
+        "harmonic": { "$ref": "#/$defs/harmonic_layer" },
+        "formant": { "$ref": "#/$defs/formant_layer" }
+      }
+    },
+    "modulation": { "$ref": "#/$defs/modulation" }
+  },
+  "$defs": {
+    "timeseries_point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["t", "v"],
+      "properties": {
+        "t": {
+          "type": "number",
+          "minimum": 0,
+          "description": "秒。ノートオンを0.0とする（docs/03）。"
+        },
+        "v": { "type": "number" }
+      }
+    },
+    "timeseries": {
+      "description": "時間変化する値の共通表現（docs/03）。点が1個の場合は定数として扱う。スカラー専用の型は別に作らない。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit", "interp", "points"],
+      "properties": {
+        "unit": { "type": "string", "minLength": 1 },
+        "interp": {
+          "enum": ["linear", "exp", "step", "spline"]
+        },
+        "points": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/timeseries_point" }
+        }
+      }
+    },
+    "timeseries_array": {
+      "description": "Timeseriesの配列（帯域別・倍音別など）。要素数の上限は docs/03『未確定』（帯域分割方式・倍音数上限）が解決するまで課さない。",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/timeseries" }
+    },
+    "transient_layer": {
+      "description": "Transient / Noise 層（docs/02）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "spectral_envelope", "duration", "gain", "seed"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "spectral_envelope": {
+          "description": "時間変化するスペクトル包絡。帯域ごとに1つのTimeseries（docs/02『時系列（ブレークポイント列 × 帯域）』）。帯域数は未確定（docs/06 Q-004）のため上限を課さない。",
+          "$ref": "#/$defs/timeseries_array"
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0,
+          "description": "ミリ秒（docs/02）。"
+        },
+        "gain": {
+          "type": "number",
+          "description": "dB（docs/02）。"
+        },
+        "seed": {
+          "type": "integer",
+          "description": "ノイズの再現性確保用（docs/02）。"
+        }
+      }
+    },
+    "harmonic_layer": {
+      "description": "Harmonic / Body 層（docs/02）。合成方式（加算合成 / ウェーブテーブル）はQ-001未解決のため、インタフェースだけを定義する。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "f0", "partial_amplitudes", "inharmonicity"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "f0": {
+          "description": "基本周波数の時間変化。グライドはここで表現する（docs/02）。",
+          "$ref": "#/$defs/timeseries"
+        },
+        "partial_amplitudes": {
+          "description": "倍音ごとに1つのTimeseries。倍音数の上限は未確定（docs/06 Q-013記載の未確定3項目のうちの1つ）のため課さない。",
+          "$ref": "#/$defs/timeseries_array"
+        },
+        "inharmonicity": {
+          "type": "number",
+          "description": "非整数次倍音のずれ（scalar、docs/02）。"
+        }
+      }
+    },
+    "formant_band": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["freq", "q", "gain"],
+      "properties": {
+        "freq": { "$ref": "#/$defs/timeseries" },
+        "q": { "$ref": "#/$defs/timeseries" },
+        "gain": { "$ref": "#/$defs/timeseries" }
+      }
+    },
+    "formant_layer": {
+      "description": "Formant filter bank（docs/02）。バンド数はv0で4に固定（3〜5の範囲で改訂を想定、docs/02）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "bands"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "bands": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/formant_band" }
+        }
+      }
+    },
+    "modulation_source_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "points"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "const": "envelope" },
+        "points": {
+          "description": "ブレークポイント列（docs/02）。",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/timeseries_point" }
+        }
+      }
+    },
+    "modulation_source_lfo": {
+      "description": "docs/02は『波形／レート／深さ／同期』とのみ記載し、各フィールドの詳細な値域・波形の列挙・同期方式は規定していない。ここではインタフェースとして最小限の型のみを課し、具体的な列挙値や『同期』の詳細な意味（テンポ同期のオン/オフ以上の分割指定等）は未確定のまま残す（暫定判断。詳細はPR本文を参照）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "waveform", "rate", "depth", "sync"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "const": "lfo" },
+        "waveform": { "type": "string", "minLength": 1 },
+        "rate": { "type": "number", "exclusiveMinimum": 0 },
+        "depth": { "type": "number" },
+        "sync": { "type": "boolean" }
+      }
+    },
+    "modulation_source": {
+      "oneOf": [
+        { "$ref": "#/$defs/modulation_source_envelope" },
+        { "$ref": "#/$defs/modulation_source_lfo" }
+      ]
+    },
+    "modulation_route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "depth", "curve"],
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "description": "変調源のid（modulation.sources[].id）。参照先idの実在チェックは構造検証の範囲外（エンジン側の責務）。"
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*(\\[[0-9]+\\])?)*$",
+          "description": "ルーティング先のドット記法パス文字列（docs/03、例：formant.bands[0].freq）。パスの実在チェックは構造検証の範囲外（エンジン側の責務、docs/03『存在しないパスもエラー』）。"
+        },
+        "depth": { "type": "number" },
+        "curve": {
+          "enum": ["linear", "exp", "step", "spline"],
+          "description": "Timeseries.interpと同じ語彙を再利用する（docs/03の例に明示的な列挙はないが、新規語彙を持ち込まないための暫定判断。詳細はPR本文を参照）。"
+        }
+      }
+    },
+    "modulation": {
+      "description": "Modulation matrix（docs/02）。source 4 × destination 8 が v0 の上限。distinctなdestination数の厳密な計数はスキーマで表現できないため、routesの配列長そのものに sources上限(4) × destination上限(8) = 32 という構造的な上限のみを課す。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sources": {
+          "type": "array",
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/modulation_source" }
+        },
+        "routes": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/modulation_route" }
+        }
+      }
+    }
+  }
+}
