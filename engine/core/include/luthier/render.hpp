@@ -15,19 +15,35 @@ namespace luthier {
 // transient.duration）から決定的に導出する。
 double computeRenderDurationSeconds(const Preset& preset);
 
+// Transient / Noise 層のレンダ（docs/02、P1-09 #54、docs/adr/0009）。
+//
+// - `enabled == false`、または `spectral_envelope` が空のときは空ベクトル
+//   （この層の寄与はゼロ）を返す。
+// - `enabled == true` のときは `duration_ms` に対応する長さのノイズを返す。
+//   各帯域のスペクトル包絡を linear / step で補間し、ホワイトノイズを帯域フィルタ
+//   したものを振幅スケールして加算する。`gain`(dB) と `seed` はそれぞれ全体振幅・
+//   ノイズの再現性に効く。exp / spline 補間は v0.1 では未実装であり、黙って線形化
+//   せず PresetError で停止する（P1-09 の規約、docs/adr/0009 / Q-004）。
+std::vector<double> renderTransient(const TransientLayer& layer, double sample_rate_hz);
+
 // プリセットをレンダし、モノラル浮動小数点サンプル列（[-1,1]）を返す。
 //
-// P1-08（#53）は Harmonic / Body 層（加算合成、docs/adr/0007）のみを実装した。
-// Transient / Formant 層と Modulation matrix は P1-09 / P1-10 / P1-11 の
-// スコープで、この時点では出力に一切寄与しない（無音）。したがって
-// `harmonic.enabled == true` のときのみ Harmonic 層の加算合成出力を含み、
-// それ以外は 0.0（無音）になる。
+// 層構成（docs/02-engine-spec.md 層[3]）：
+//   [1] Transient 層 \__/
+//   [2] Harmonic 層  /   →（加算）→ 全サンプルを出力長に合わせて足す
+// P1-08/P1-09 の統合（スタック積み上げの中間段階）時点では、この加算結果をそのまま
+// 返す。Formant filter bank（P1-10）はスタックの次段でこの出力を受ける。
+// 無効な層は出力に一切寄与しない（各層の enabled ゲート）。
 //
 // docs/02-engine-spec.md「実装上の制約」：
-// - 決定論（同一バイナリ内で常にビットレベルで同一）。スカラーループのみで
-//   書き、乱数を使わない（docs/adr/0006「決定論・サンプルレート非依存の担保」）。
-//   コンパイラ間のビット一致は保証しない範囲についてはP1-08のPR本文に明記。
+// - 決定論（同一バイナリ内で常にビットレベルで同一）。スカラーループのみで書き、
+//   乱数は seed で決定的な SplitMix64 のみを使用（docs/adr/0006・0009）。
 // - サンプルレート非依存（レンダ時指定サンプルレートで離散化する）。
 std::vector<double> render(const Preset& preset, double sample_rate_hz);
+
+// 「すべての層を無効にした場合」の参照信号（全サンプル0.0）を返す。
+// 層のDSPが実装された後も、無音の基準波形（レンダエビデンスの target 側など）に
+// 使えるように残す。
+std::vector<double> renderSilence(const Preset& preset, double sample_rate_hz);
 
 }  // namespace luthier
