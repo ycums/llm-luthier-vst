@@ -10,6 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # エンジンコア・ヘッドレスCLIレンダラのビルドとテスト（docs/adr/0006、
+      # Issue #51「エンジンのビルドとテストがCIで実行される」）。
+      # ビルド済みバイナリのパスは LUTHIER_RENDER_BIN として後続のpytestに渡す
+      # （tests/test_engine_cli_wav_compat.py が、CLIの出力がharnessの音声I/O層
+      # で読めることを検証する）。
+      - name: Configure engine (CMake)
+        run: cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
+      - name: Build engine
+        run: cmake --build engine/build --parallel
+      - name: Test engine (ctest)
+        run: ctest --test-dir engine/build --output-on-failure
+      - name: Export engine binary path
+        run: echo "LUTHIER_RENDER_BIN=$(pwd)/engine/build/cli/luthier-render" >> "$GITHUB_ENV"
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
