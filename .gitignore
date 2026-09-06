@@ -11,3 +11,7 @@ __pycache__/
 *.egg-info/
 .DS_Store
 corpus/.cache/
+# リポジトリ直下に置く git worktree（.worktrees/）は作業用の隔離先であり、
+# 本枝のソースではない。gitignore しないと ruff check . が各 worktree の
+# 古いブランチ内容まで再帰スキャンし、ローカル lint が CI と乖離して壊れる。
+.worktrees/
