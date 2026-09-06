@@ -2,8 +2,21 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+# 同一ブランチへの連続pushで古いrunをキャンセルする（Issue #89）。ブランチ保護は
+# 無効（required status checksなし、実測: `branches/main` の `protected: false`）
+# のため、キャンセルされたrunがマージをブロックする心配はない。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
