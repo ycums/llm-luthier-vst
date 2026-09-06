@@ -90,6 +90,16 @@ def read_wav(path: str | Path) -> AudioBuffer:
     )
 
 
+def read_sample_rate(path: str | Path) -> int:
+    """音声ファイルのサンプルレートだけを読み取る（全サンプルは読まない）。
+
+    `soundfile.info` を使ってヘッダのみを読む。ターゲット音源のサンプルレートに
+    合わせてレンダする（`harness/corpus_runner.py`）ときに、重いデコードを
+    避けてSRだけを取得するために使う。
+    """
+    return int(sf.info(str(path)).samplerate)
+
+
 def to_mono(buffer: AudioBuffer) -> AudioBuffer:
     """ステレオ（以上）のAudioBufferをモノラルに変換する。
 

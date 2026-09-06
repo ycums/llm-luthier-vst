@@ -176,7 +176,7 @@ _LOUDNESS_RMS_EPS = 1e-12
 #: 出力する指標ベクトルのスキーマバージョン（docs/04-metrics.schema.json に合わせる）。
 #: segments/bands の実装（P0-06/P0-07）で 2.0.0（segment_boundaries の null 許容）、
 #: フォルマント軌跡距離の実装（P0-09）で estimation_algorithms に方式パラメータを追加した。
-SCHEMA_VERSION = "2.0.0"
+SCHEMA_VERSION = "2.1.0"
 
 #: 区間境界が注釈として与えられていない場合の欠測理由（segment名ごと）。
 _SEGMENT_BOUNDARY_MISSING_REASONS = {

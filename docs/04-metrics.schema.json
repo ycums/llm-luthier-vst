@@ -141,6 +141,21 @@
             "additionalProperties": false
           },
           "description": "f0推定・フォルマント推定など、算出に使った推定アルゴリズムの名前とバージョン。フォルマント推定（stft-peak-tracking）はその方式（追跡数・フレーム/ホップ長・FFTサイズ・追跡幅）も記録する（Q-010 参照）。"
+        },
+        "render": {
+          "description": "ターゲットと比較するcandidateが、どのようにして作られたか（P1-07 #52）。candidateは `luthier-render`（ヘッドレスCLI）がプリセットから生成したWAV。サンプルレートの扱い：ターゲット音源のサンプルレートに合わせてレンダする（`harness/corpus_runner.py` 参照）ため、candidateのSRは常にターゲットと一致する。この方針は明示的にここに記録する。",
+          "type": "object",
+          "properties": {
+            "renderer": { "type": "string", "minLength": 1 },
+            "preset_path": { "type": "string", "minLength": 1 },
+            "sample_rate_hz": { "type": ["integer", "null"] },
+            "sr_mismatch_policy": {
+              "type": "string",
+              "enum": ["render_at_target_sample_rate"]
+            }
+          },
+          "required": ["renderer", "preset_path", "sample_rate_hz", "sr_mismatch_policy"],
+          "additionalProperties": false
         }
       },
       "required": [
