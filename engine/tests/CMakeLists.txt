@@ -17,6 +17,7 @@ add_executable(luthier_core_tests
     test_timeseries_interp.cpp
     test_wav_writer.cpp
     test_formant.cpp
+    test_modulation.cpp
 )
 target_link_libraries(luthier_core_tests PRIVATE luthier_core Catch2::Catch2WithMain)
 target_include_directories(luthier_core_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

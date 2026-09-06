@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <string>
 #include <vector>
 
+#include "luthier/render.hpp"
 #include "luthier/timeseries.hpp"
 
 namespace luthier {
@@ -43,11 +45,27 @@ struct SvfBandpass {
 
 double dbToLin(double db) { return std::pow(10.0, db / 20.0); }
 
+// P1-11（#56）：変調オフセット参照（render.cpp の modOffsetAt と同じ規約）。
+double modOffsetAt(const ModulationOffsetMap *off, const std::string &path,
+                   std::size_t i) {
+  if (off == nullptr)
+    return 0.0;
+  auto it = off->find(path);
+  if (it == off->end())
+    return 0.0;
+  return it->second[i];
+}
+
+std::string bandPath(std::size_t b, const char *field) {
+  return std::string("formant.bands[") + std::to_string(b) + "]." + field;
+}
+
 } // namespace
 
 std::vector<double> applyFormant(const FormantLayer &layer,
                                  const std::vector<double> &input,
-                                 double sample_rate_hz) {
+                                 double sample_rate_hz,
+                                 const ModulationOffsetMap *mod_offsets) {
   if (!layer.enabled)
     return input;
 
@@ -60,9 +78,13 @@ std::vector<double> applyFormant(const FormantLayer &layer,
     double acc = 0.0;
     for (std::size_t b = 0; b < layer.bands.size(); ++b) {
       const FormantBand &band = layer.bands[b];
-      const double freq = sampleTimeseries(band.freq, t);
-      const double q = sampleTimeseries(band.q, t);
-      const double gainDb = sampleTimeseries(band.gain, t);
+      // P1-11（#56）：freq/Q/gain の基底値に変調オフセットを加算する。
+      const double freq = sampleTimeseries(band.freq, t) +
+                          modOffsetAt(mod_offsets, bandPath(b, "freq"), i);
+      const double q = sampleTimeseries(band.q, t) +
+                       modOffsetAt(mod_offsets, bandPath(b, "q"), i);
+      const double gainDb = sampleTimeseries(band.gain, t) +
+                            modOffsetAt(mod_offsets, bandPath(b, "gain"), i);
       state[b].setCoefficients(freq, q, sample_rate_hz);
       acc += dbToLin(gainDb) * state[b].process(input[i]);
     }

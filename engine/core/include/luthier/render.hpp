@@ -1,10 +1,16 @@
 #pragma once
 
+#include <cstddef>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "luthier/preset.hpp"
 
 namespace luthier {
+
+using ModulationOffsetMap =
+    std::unordered_map<std::string, std::vector<double>>;
 
 // プリセットが持つ全時系列の最大時刻と transient.duration から、レンダすべき
 // 長さ（秒）を決める。
@@ -26,8 +32,15 @@ double computeRenderDurationSeconds(const Preset &preset);
 //   はそれぞれ全体振幅・ ノイズの再現性に効く。exp / spline 補間は v0.1
 //   では未実装であり、黙って線形化 せず PresetError で停止する（P1-09
 //   の規約、docs/adr/0009 / Q-004）。
-std::vector<double> renderTransient(const TransientLayer &layer,
-                                    double sample_rate_hz);
+//
+// `mod_offsets` が nullptr でない場合、P1-11（#56）の加算方式の変調を適用する。
+// 目的パス `transient.gain` と `transient.spectral_envelope[b]` に対応する
+// サンプル列を、それぞれ基底値（gain_db / 当該帯域の包絡）に加算する。
+// オフセットの index は時刻 t = index / sample_rate_hz に対応（render の sample
+// と一致）。
+std::vector<double>
+renderTransient(const TransientLayer &layer, double sample_rate_hz,
+                const ModulationOffsetMap *mod_offsets = nullptr);
 
 // プリセットをレンダし、モノラル浮動小数点サンプル列（[-1,1]）を返す。
 //
