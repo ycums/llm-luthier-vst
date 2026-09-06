@@ -36,3 +36,42 @@ jobs:
         run: uv run ruff check .
       - name: Test (pytest)
         run: uv run pytest -q
+
+  # Windows（MSVC）での開発環境が壊れていないことの保証（Issue #51「環境前提」）。
+  # ローカルWindowsで /utf-8 を当てて全テストが通ることを確認済みだが、それをGitHub
+  # Actionsのランナーで再現する。ubuntu ジョブと同内容を windows-latest で回す。
+  # エンジンはMSVCでビルドするため、MSVCの環境変数を設定してから Ninja でConfigureする
+  # （デフォルトのVisual Studioジェネレータはマルチコンフィグでビルド種別の扱いが
+  # 変わり、バイナリ配置も Debug/Release に分かれるため、単一コンフィグの Ninja に
+  # 固定してローカル検証手順と一致させる）。
+  test-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure engine (CMake/Ninja)
+        run: cmake -S engine -B engine/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build engine
+        run: cmake --build engine/build --parallel
+      - name: Test engine (ctest)
+        run: ctest --test-dir engine/build --output-on-failure
+      - name: Export engine binary path (Windows)
+        run: echo "LUTHIER_RENDER_BIN=$(pwd)/engine/build/cli/luthier-render.exe" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Lint (ruff)
+        run: uv run ruff check .
+      - name: Test (pytest)
+        run: uv run pytest -q
