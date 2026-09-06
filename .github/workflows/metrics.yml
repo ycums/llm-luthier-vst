@@ -7,7 +7,15 @@ name: Metrics
 #
 # 指標の値がどうあれこのワークフロー自体は失敗させない（Q-006の暫定の扱い、
 # docs/06-open-questions.md）。失敗させるのは、指標算出そのものが例外で失敗した場合
-# （run-corpusの終了コード1）と、コーパス実行の成果物件数がマニフェストと食い違う場合のみ。
+# （run-corpusの終了コード1）、コーパス実行の成果物件数がマニフェストと食い違う場合、
+# および corpus/baseline/ の鮮度検証（下記）が不一致を検出した場合のみ。
+#
+# #88（#86の決定の実装）：corpus/baseline/ が現在のエンジンでの run-corpus 出力に追いついて
+# いるかを ubuntu-latest ジョブに限って検証する（docs/04-metrics.md「更新手順」）。
+# Windows（MSVC）では検証しない（docs/06-open-questions.md Q-016「コンパイラ間のビット一致は
+# 保証しない」により恒常的な誤検出になるため）。判定はビット完全一致（許容誤差なし）。
+# 非同梱音源の取得失敗（status: missing）は誤検出を避けるため比較対象から除外する
+# （詳細は harness/baseline_freshness.py のモジュールdocstring）。
 #
 # #52：レンダラ（engine/cli の luthier-render）を先にビルドし、そのバイナリパスを
 # LUTHIER_RENDER_BIN として run-corpus と成果物の一環で使う。docs/adr/0008 の
@@ -120,6 +128,17 @@ jobs:
           )
           print(f"ok: {expected} manifest entries -> {expected} json + index.json")
           PY
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: Check corpus/baseline/ freshness (#88 / #86の決定の実装)
+        # ubuntu-latest（docs/adr/0008 の基準環境）に限定する。Windows（MSVC）では
+        # 恒常的な誤検出になるため検証しない（Q-016、上部コメント参照）。
+        if: matrix.runs-on == 'ubuntu-latest'
+        run: |
+          uv run python -m harness check-baseline-freshness \
+            --baseline corpus/baseline \
+            --current metrics_output/current
         env:
           PYTHONIOENCODING: utf-8
 

@@ -16,6 +16,7 @@
 | `harness/metrics_diff.py` | `run-corpus` の出力2組（基準/今回）の機械可読な指標差分JSONの算出（P0-12b-1） |
 | `harness/metrics_diff_report.py` | `metrics_diff.py` の差分JSONを人間向けのMarkdown表（変更前/変更後/差）に整形する（P0-12b-2） |
 | `harness/harmonic_observation.py` | コーパスの倍音構造観測。`docs/06-open-questions.md` Q-001（Harmonic層の合成方式）の判断材料を出力する（P1-02） |
+| `harness/baseline_freshness.py` | `corpus/baseline/` が今回の `run-corpus` 出力と一致しているか（陳腐化していないか）の検証（Issue #88、#86決定の実装） |
 
 ## フィクチャ生成（P0-04）
 

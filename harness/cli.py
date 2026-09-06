@@ -5,8 +5,9 @@
 （スペクトグラム画像対の生成、P0-14）、`run-corpus`（コーパス全体への指標算出の一括実行、
 P0-11）、`diff-corpus`（コーパス実行結果2組の機械可読な指標差分JSON `diff.json` と、
 人間向けの整形出力 `report.md` の算出、P0-12b-1 / P0-12b-2）、`observe-harmonics`
-（コーパスの倍音構造観測、P1-02）の各サブコマンドを提供する。
-帯域別指標はP0-07、フォルマント軌跡距離はP0-09の範囲。
+（コーパスの倍音構造観測、P1-02）、`check-baseline-freshness`（`corpus/baseline/` が
+今回の `run-corpus` 出力と一致しているかの検証、Issue #88 / #86決定の実装）の各サブコマンドを
+提供する。帯域別指標はP0-07、フォルマント軌跡距離はP0-09の範囲。
 """
 
 from __future__ import annotations
@@ -17,6 +18,11 @@ import sys
 from pathlib import Path
 
 from harness.audio_io import read_wav
+from harness.baseline_freshness import (
+    BaselineFreshnessError,
+    check_baseline_freshness,
+    render_freshness_report,
+)
 from harness.corpus_runner import ManifestError, run_corpus
 from harness.fixture_gen import generate_all
 from harness.harmonic_observation import DEFAULT_N_HARMONICS, observe_corpus
@@ -214,6 +220,26 @@ def _build_parser() -> argparse.ArgumentParser:
         help="倍音の同定を試みる最大次数（既定: 8）",
     )
 
+    check_baseline_freshness_parser = subparsers.add_parser(
+        "check-baseline-freshness",
+        help=(
+            "corpus/baseline/ が今回の run-corpus 出力と一致しているか（陳腐化していないか）を"
+            "検証する（Issue #88、#86決定の実装）"
+        ),
+    )
+    check_baseline_freshness_parser.add_argument(
+        "--baseline",
+        type=Path,
+        required=True,
+        help="基準（baseline）となる run-corpus の出力ディレクトリ（通常 corpus/baseline/）",
+    )
+    check_baseline_freshness_parser.add_argument(
+        "--current",
+        type=Path,
+        required=True,
+        help="今回の run-corpus の出力ディレクトリ",
+    )
+
     return parser
 
 
@@ -334,6 +360,29 @@ def _run_observe_harmonics(manifest: Path, out: Path, n_harmonics: int) -> int:
     return 1 if summary["error"] > 0 else 0
 
 
+def _run_check_baseline_freshness(baseline: Path, current: Path) -> int:
+    try:
+        result = check_baseline_freshness(baseline, current)
+    except BaselineFreshnessError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    print(
+        f"compared: {len(result['compared_ids'])} "
+        f"skipped(missing): {len(result['skipped'])} "
+        f"stale: {len(result['stale_entries'])}"
+    )
+    for s in result["skipped"]:
+        print(f"  skip {s['id']}: {s['reason']}")
+
+    if not result["fresh"]:
+        print(render_freshness_report(result), file=sys.stderr)
+        return 1
+
+    print(render_freshness_report(result))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -358,6 +407,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_diff_corpus(args.baseline, args.current, args.out)
     if args.command == "observe-harmonics":
         return _run_observe_harmonics(args.manifest, args.out, args.n_harmonics)
+    if args.command == "check-baseline-freshness":
+        return _run_check_baseline_freshness(args.baseline, args.current)
 
     # サブコマンド未指定時はヘルプを表示して終了する（エラー扱いにはしない）。
     parser.print_help()

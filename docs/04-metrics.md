@@ -194,10 +194,40 @@ JSON。CIとフィッティングループの両方が機械可読に扱える�
   `corpus/baseline/` は単一のスナップショットであり、Windows/MSVCジョブの `run-corpus` 出力と
   比較すると、エンジンに変更がなくてもlibm差でビット不一致になりうる。Windowsジョブでも検証すると、
   コード変更の有無に関わらず恒常的に赤くなる誤検出を作るため、`ubuntu-latest` のジョブに限定する
-- **一致の判定方法（ビット完全一致か、微小な許容誤差を認めるか、認める場合の数値）は実装Issueで
-  決める。** `corpus/baseline/` を生成した環境と `ubuntu-latest` のCI実行環境の間に実測でどの程度の
-  差が出るかを見てから決める（`AGENTS.md` 第6節「未確定事項を推測で埋めない」）。本決定が確定させる
-  のは「CIで検証する」という方式そのものと、上記の不変条件の輪郭までとする
+- **一致の判定方法：ビット完全一致（許容誤差なし）を採用する（Issue #88で決定）。**
+  `corpus/baseline/` を生成した環境と `ubuntu-latest` 相当のLinux/gcc環境で実測したところ
+  （下記「一致の判定方法の実測（Issue #88）」）、鮮度が保たれている音源では全指標値が浮動小数点の
+  等価比較（`==`）でビット単位一致し、許容誤差を設けるべき実測上の根拠は確認できなかった。判定・
+  比較ロジックの実装は `harness/baseline_freshness.py`。既存の `harness/metrics_diff.py`
+  （`diff-corpus`）の `diff_metrics_vector` をそのまま転用し（二重実装を避ける）、
+  「悪化したか」ではなく「値が変わっていないか」を判定する専用のラッパーとして実装した
+
+### 一致の判定方法の実測（Issue #88）
+
+`docs/adr/0008` の基準環境（Linux/gcc・`ubuntu-latest`）に近いローカル環境（Ubuntu 24.04 /
+gcc 13.3.0）でエンジンをビルドし、非同梱音源を取得したうえで `run-corpus` を実行し、
+コミット済みの `corpus/baseline/` と比較した。
+
+- 鮮度が保たれていた10音源（`tibetan_singing_bowl` を除く全音源）は、両側とも欠測でない
+  実数値の指標（`overall` / `segments` / `bands` / `trajectories` 合計138件）が**すべて**
+  浮動小数点の等価比較（`==`）でビット単位一致した（差分ゼロ）。マイクロな丸め誤差の類は
+  一切観測されなかった。欠測（`value: null`）の有無（区間境界未注釈による欠測パターン）も
+  基準/今回で完全に一致した
+- 唯一 `tibetan_singing_bowl` だけが大きく不一致（例：`overall.loudness_diff_db` が
+  基準 `-209.59` に対し実測 `39.18`）だったが、これは許容誤差の問題ではなく**実際の陳腐化**
+  だった。原因はPR #85で記録済み：Wikimediaのレート制限により当時の実行でこの音源だけ
+  再取得に失敗し、既存の（`candidate_path` がレンダラ出力に差し替わる前の、無音レンダ時代の）
+  baselineをやむを得ずそのまま保持していた。この不一致は、本Issueで実装した検証が実際に
+  陳腐化を検出できることの実地証跡でもある（下記「動作確認」参照）
+- 以上から、`corpus/baseline/` の生成環境とCI実行環境の間に、許容誤差を要するような系統的な
+  数値差は実測で確認されなかった。ビット完全一致を要求しても、環境差による誤検出は起きない
+
+**動作確認（陳腐化の検出）：** 上記の実測データそのものが「`corpus/baseline/` が意図的に
+（というより実際に）古いままの状態でチェックを走らせ、失敗することを確認した」証跡である。
+`tibetan_singing_bowl` の陳腐化を検出したCLI実行（`python -m harness check-baseline-freshness`）は
+終了コード1を返し、不一致の指標パス（`overall.msstft` 等）と直し方（`run-corpus` の再実行手順）を
+含むメッセージを出力した。本PRはこの陳腐化を修正するため、`corpus/baseline/` を全音源分
+再生成してコミットした（`tibetan_singing_bowl` を含む。差分は本PRに含まれる）
 
 **制約への対応（非同梱音源の取得失敗を誤検出にしない）：** コーパス11音源のうち8音源は非同梱で、
 `corpus/fetch_and_verify.py` の取得はWikimediaのレート制限（`429 Too Many Requests`）で失敗しうる
@@ -207,6 +237,16 @@ JSON。CIとフィッティングループの両方が機械可読に扱える�
 エントリを比較対象から除外する**ことで、取得失敗を「baselineが古い」と誤検出しない。除外された
 エントリは「一致した」とも「不一致だった」とも判定されず、単に検証対象外になる（既存の
 `diff-corpus` が欠測指標を悪化判定の対象外にするのと同じ設計、`harness/metrics_diff.py`）。
+
+**実装上の補足（`status: "error"` も同様に除外する）：** `harness/baseline_freshness.py` は、
+セルフレビュー（`/code-review`）の指摘を受け、`status: "missing"` に加えて `status: "error"`
+（レンダ・指標算出が例外で失敗）のエントリも比較対象から除外する。missing・errorのいずれも
+出力される指標ベクトルは全欠測（`build_missing_metrics_vector`、同じ形）であり、除外しなければ
+一時的なレンダ失敗を「baselineが古い」と必ず誤検出する。この不変条件の輪郭自体（Issue #86が
+決定した対象は non-bundled音源の取得失敗＝missing）は変えていない：`status: "error"` は
+`run-corpus` 自体の終了コード1で別途CIが失敗するため（`.github/workflows/metrics.yml`
+「Run corpus」ステップ）、`ubuntu-latest` ジョブの実際の挙動（本検証に到達する前にジョブが失敗する）
+はこの補足の有無で変わらない。ライブラリ関数単体の頑健性のための実装詳細として記録する。
 
 **却下した案：**
 
