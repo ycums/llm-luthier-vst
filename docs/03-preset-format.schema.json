@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/ycums/llm-luthier-vst/blob/main/docs/03-preset-format.schema.json",
   "title": "Intermediate Preset",
-  "description": "docs/03-preset-format.md が定義する中間プリセット形式（LLM側とバイナリ側の唯一の境界面）の機械可読なスキーマ。未知のフィールドは additionalProperties:false によりすべての階層で不許可とする（docs/03『未知のフィールドを見つけたエンジンはエラーで停止する』）。バージョニングは docs/03『バージョニング』のセマンティックバージョニングに従う：フィールド追加は minor、削除・意味変更・必須化は major、説明の修正のみは patch。本スキーマ自体の現在のバージョンは 0.1.0 であり、各プリセットインスタンスが宣言する format_version と対応する（このスキーマ自身の版を別フィールドに二重記録しない）。docs/03『未確定』（spectral_envelope の帯域分割方式・partial_amplitudes の倍音数上限・時系列の点数上限）は意図的に未制約のまま残す：これらに上限値を課すと AGENTS.md 第6節が禁じる『未確定事項を推測で埋める』ことになる。ルーティング先パスの実在チェック（docs/03『存在しないパスもエラー』）や、modulation の疎行列上限（source 4 × destination 8、docs/02）のうち distinct な destination 数の厳密な計数は、プリセット単体の構造検証では表現できない意味検証であり、エンジン実装側（P1-06）の責務とする。本スキーマでは sources の数（最大4）と routes の配列長（sources上限4 × destination上限8 = 32）という構造的に表現できる上限のみを課す。",
+  "description": "docs/03-preset-format.md が定義する中間プリセット形式（LLM側とバイナリ側の唯一の境界面）の機械可読なスキーマ。未知のフィールドは additionalProperties:false によりすべての階層で不許可とする（docs/03『未知のフィールドを見つけたエンジンはエラーで停止する』）。バージョニングは docs/03『バージョニング』のセマンティックバージョニングに従う：フィールド追加は minor、削除・意味変更・必須化は major、説明の修正のみは patch。本スキーマ自体の現在のバージョンは 0.1.1 であり、各プリセットインスタンスが宣言する format_version と対応する（このスキーマ自身の版を別フィールドに二重記録しない）。0.1.1 は harmonic_layer の description 文言を ADR-0007（Harmonic層の合成方式に加算合成を採用）に合わせて更新した patch（フィールド構造・required は不変、docs/03「バージョニング」表の『説明の修正のみ』に該当）。docs/03『未確定』（spectral_envelope の帯域分割方式・partial_amplitudes の倍音数上限・時系列の点数上限）は意図的に未制約のまま残す：これらに上限値を課すと AGENTS.md 第6節が禁じる『未確定事項を推測で埋める』ことになる。ルーティング先パスの実在チェック（docs/03『存在しないパスもエラー』）や、modulation の疎行列上限（source 4 × destination 8、docs/02）のうち distinct な destination 数の厳密な計数は、プリセット単体の構造検証では表現できない意味検証であり、エンジン実装側（P1-06）の責務とする。本スキーマでは sources の数（最大4）と routes の配列長（sources上限4 × destination上限8 = 32）という構造的に表現できる上限のみを課す。",
   "type": "object",
   "additionalProperties": false,
   "required": ["format_version", "engine_spec_version", "layers"],
@@ -102,7 +102,7 @@
       }
     },
     "harmonic_layer": {
-      "description": "Harmonic / Body 層（docs/02）。合成方式（加算合成 / ウェーブテーブル）はQ-001未解決のため、インタフェースだけを定義する。",
+      "description": "Harmonic / Body 層（docs/02）。合成方式は加算合成を採用（Q-001 resolved、docs/adr/0007-harmonic-layer-additive-synthesis.md）。フィールド構成は加算合成のパラメータとしてそのまま解釈できるため、決定にあたりフィールドの追加・削除・意味変更は行っていない。",
       "type": "object",
       "additionalProperties": false,
       "required": ["enabled", "f0", "partial_amplitudes", "inharmonicity"],
