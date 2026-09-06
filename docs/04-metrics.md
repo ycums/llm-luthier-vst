@@ -111,14 +111,20 @@ JSON。CIとフィッティングループの両方が機械可読に扱える�
     "formant_dist": { "value": 0.0, "missing_reason": null }
   },
   "calc_conditions": {
-    "schema_version": "2.0.0",
+    "schema_version": "2.1.0",
     "fft_sizes": [512, 2048, 8192],
     "band_edges_hz": [0, 200, 800, 2000, 5000, 20000],
     "segment_boundaries_s": { "attack_end_s": 0.02, "transition_end_s": null, "sustain_end_s": 0.45 },
     "estimation_algorithms": [
       { "name": "yin", "version": "n/a" },
       { "name": "stft-peak-tracking", "version": "1", "n_formants": 3, "frame_length": 1600, "hop_length": 320, "fft_size": 1024, "max_track_gap_hz": 300.0 }
-    ]
+    ],
+    "render": {
+      "renderer": "luthier-render",
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "sample_rate_hz": 44100,
+      "sr_mismatch_policy": "render_at_target_sample_rate"
+    }
   }
 }
 ```
@@ -167,10 +173,15 @@ JSON。CIとフィッティングループの両方が機械可読に扱える�
 （マージ後にCIが自動でコミットする等）は、この手動運用が実際に何回・どの程度の手間で破綻するか
 観測してから決める（`AGENTS.md` 第8節「3回ルール」）。先回りして自動化しない。
 
-**フェーズ0時点の既知の限界：** `corpus/manifest.json` の `candidate_path` は自己比較の seam
-（`harness/corpus_runner.py` 参照）であるため、現時点で `corpus/baseline/` を実際にコミットしても
-全差分は常に0になる。`corpus/baseline/` への実体投入と運用開始は、レンダラが実装され
-`candidate_path` がレンダ出力に差し替わるフェーズ1以降になる（P0-13でのCI組み込み時に判断）。
+**P1-07時点の既知の限界：** `corpus/manifest.json` の `candidate_path`（自己比較の seam）は、
+レンダラが実装されたため **`preset_path` に置き換えられ、candidate はレンダラの出力**
+（`harness.corpus_runner.py` 参照）になった。レンダのサンプルレートはターゲットに合わせ、
+方針は `calc_conditions.render.sr_mismatch_policy` に記録される（docs/04-metrics.schema.json）。
+なお、P1-06時点の暫定プリセットが鳴らすのは無音であるため（docs/02「この時点では4層とも
+音を出さない」）、candidate は全エントリで無音になる。したがって指標値は「無音 vs ターゲット
+音源」の距離となり、軌跡指標（無音側の包絡・f0・フォルマントが定義されない）は欠測として
+出力される。これは「悪化」ではなく、比較対象そのものが変わったことによる変化である
+（#52 注意、前後の値は比較不能）。層のDSP実装（P1-08以降）まで、この状態が続く。
 
 ## 未確定
 

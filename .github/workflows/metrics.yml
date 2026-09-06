@@ -1,12 +1,20 @@
 name: Metrics
 
 # docs/00-vision.md フェーズ0の遷移条件「指標ベクトルがCIで自動出力される」を満たす
-# ワークフロー（Issue #13 / P0-13）。指標算出（run-corpus）と、前回コミットとの差分
-# （diff-corpus）を毎回実行し、結果を成果物とジョブサマリに出す。
+# ワークフロー（Issue #13 / P0-13）を、レンダラ導入（P1-07 #52）に合わせて拡張した版。
+# run-corpus（プリセット→レンダ→指標算出）と、前回コミットとの差分（diff-corpus）を
+# 毎回実行し、結果を成果物とジョブサマリに出す。
 #
-# 指標の値がどうであれこのワークフロー自体は失敗させない（Q-006の暫定の扱い、
+# 指標の値がどうあれこのワークフロー自体は失敗させない（Q-006の暫定の扱い、
 # docs/06-open-questions.md）。失敗させるのは、指標算出そのものが例外で失敗した場合
 # （run-corpusの終了コード1）と、コーパス実行の成果物件数がマニフェストと食い違う場合のみ。
+#
+# #52：レンダラ（engine/cli の luthier-render）を先にビルドし、そのバイナリパスを
+# LUTHIER_RENDER_BIN として run-corpus と成果物の一環で使う。docs/adr/0008 の
+# サポート対象プラットフォーム（Linux/gcc・Windows/MSVC）の両方で回す。
+# Windows（MSVC）はローカル検証手順と同じく /utf-8（CMake側）と -G Ninja を使い、
+# ハーネス側は日本語stdoutのための PYTHONIOENCODING=utf-8 を設定する（PR #64 で対処済みの
+# 文字コード扱いを metrics.yml でも踏襲する）。
 
 on:
   pull_request:
@@ -17,30 +25,66 @@ on:
 
 jobs:
   metrics:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs-on: ubuntu-latest
+            render_bin: engine/build/cli/luthier-render
+            generator_flag: ""
+          - runs-on: windows-latest
+            render_bin: engine/build/cli/luthier-render.exe
+            generator_flag: "-G Ninja"
+    runs-on: ${{ matrix.runs-on }}
+    defaults:
+      run:
+        # 両プラットフォームで bash を既定のシェルにする（Windows でも git-bash が
+        # ランナーに用意されている。後続の steps を POSIX 構文で書くため）。
+        shell: bash
     steps:
       - uses: actions/checkout@v5
+
+      # Windows（MSVC）でエンジンをビルドするには MSVC 環境変数が必要（ci.yml と同じ手順）。
+      - name: Set up MSVC environment (Windows)
+        if: matrix.runs-on == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # Configure engine（Windowsは単一コンフィグの Ninja に固定。docs/adr/0008§5）。
+      - name: Configure engine
+        run: cmake -S engine -B engine/build ${{ matrix.generator_flag }} -DCMAKE_BUILD_TYPE=Release
+      - name: Build engine
+        run: cmake --build engine/build --parallel
+      - name: Test engine (ctest)
+        run: ctest --test-dir engine/build --output-on-failure
+      - name: Export engine binary path
+        run: echo "LUTHIER_RENDER_BIN=$(pwd)/${{ matrix.render_bin }}" >> "$GITHUB_ENV"
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install uv
         run: pip install uv
       - name: Install dependencies
-        run: uv sync
+        # #52 で lint（ruff）と pytest を metrics.yml にも組み込んだため dev extra が必要
+        # （サポート対象2環境でハーネスのテストが通ることを #52 完了条件とする、
+        # docs/adr/0008）。
+        run: uv sync --extra dev
 
       - name: Fetch corpus audio (非同梱音源の取得)
         # 同梱不可（bundled: false）の音源を corpus/.cache/ に取得する
         # （corpus/fetch_and_verify.py、corpus/README.md「既知のリスク」参照）。
-        # ここで取得しない設計だと、非同梱の音源は常に欠測になり run-corpus の
-        # 欠測処理が一度も本来の目的（取得不能な環境での縮退）で機能せず、
-        # コーパスの多様性を指標算出に反映できない（PR #43 レビュー指摘）。
         # 取得失敗（レート制限・取得不能な環境）はここで止めず、続く
         # run-corpus 側の欠測記録に委ねる（Issue #13 完了条件）。
         id: fetch_corpus
         continue-on-error: true
-        run: python3 corpus/fetch_and_verify.py
+        run: uv run python corpus/fetch_and_verify.py
 
-      - name: Run corpus (指標ベクトル算出)
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Run corpus (プリセット→レンダ→指標ベクトル算出)
+        # #52：run-corpus が LUTHIER_RENDER_BIN のレンダラを起動し、各entryの preset_path
+        # をレンダしてターゲットと比較する。無音レンダでも欠測として完走する。
         id: run_corpus
         run: |
           start=$(date +%s)
@@ -48,6 +92,13 @@ jobs:
             --manifest corpus/manifest.json \
             --out metrics_output/current
           echo "elapsed_s=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: Run pytest
+        run: uv run pytest -q
+        env:
+          PYTHONIOENCODING: utf-8
 
       - name: Verify output count (成果物件数の検証)
         run: |
@@ -69,6 +120,8 @@ jobs:
           )
           print(f"ok: {expected} manifest entries -> {expected} json + index.json")
           PY
+        env:
+          PYTHONIOENCODING: utf-8
 
       - name: Compute vectors checksum (決定論検証用)
         # 音源ごとの指標ベクトルJSON（index.jsonを除く。所要時間を含み実行ごとに
@@ -81,11 +134,12 @@ jobs:
             -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "vectors sha256 (index.json除く): $checksum"
+        shell: bash
 
       - name: Upload metrics vectors (成果物)
         uses: actions/upload-artifact@v4
         with:
-          name: metrics-vectors
+          name: metrics-vectors-${{ matrix.runs-on }}
           path: metrics_output/current
 
       - name: Diff against baseline (前回コミットとの差分)
@@ -97,11 +151,13 @@ jobs:
             --current metrics_output/current \
             --out metrics_output/diff
           echo "elapsed_s=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+        env:
+          PYTHONIOENCODING: utf-8
 
       - name: Upload diff (成果物)
         uses: actions/upload-artifact@v4
         with:
-          name: metrics-diff
+          name: metrics-diff-${{ matrix.runs-on }}
           path: metrics_output/diff
 
       - name: Write job summary
@@ -110,6 +166,8 @@ jobs:
         # 整形ロジックはharness/metrics_diff_report.pyの責務であり、ここでは
         # 二重実装しない（AGENTS.md第8節「先回りして環境を整えない」）。
         env:
+          PYTHONIOENCODING: utf-8
+          RUNS_ON: ${{ matrix.runs-on }}
           FETCH_CORPUS_OUTCOME: ${{ steps.fetch_corpus.outcome }}
           RUN_CORPUS_ELAPSED_S: ${{ steps.run_corpus.outputs.elapsed_s }}
           DIFF_CORPUS_ELAPSED_S: ${{ steps.diff_corpus.outputs.elapsed_s }}
@@ -123,8 +181,9 @@ jobs:
           index = json.loads(Path("metrics_output/current/index.json").read_text(encoding="utf-8"))
           report = Path("metrics_output/diff/report.md").read_text(encoding="utf-8")
 
-          print("## 指標ベクトル自動出力（P0-13）")
+          print("## 指標ベクトル自動出力（P0-13 / P1-07）")
           print()
+          print(f"- platform: {os.environ['RUNS_ON']}")
           print(f"- fetch corpus audio: {os.environ['FETCH_CORPUS_OUTCOME']}"
                 "（失敗しても run-corpus 側の欠測記録に委ねて続行する）")
           print(f"- run-corpus: {index['summary']} / 所要 {os.environ['RUN_CORPUS_ELAPSED_S']}s")

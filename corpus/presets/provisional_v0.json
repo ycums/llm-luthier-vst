@@ -1,0 +1,53 @@
+{
+  "format_version": "0.1.0",
+  "engine_spec_version": "0.1.0",
+  "meta": {
+    "source": "provisional common preset for P1-07 (#52)",
+    "generated_by": "llm-luthier-vst",
+    "iteration": 0
+  },
+  "layers": {
+    "transient": {
+      "enabled": true,
+      "gain": 0.0,
+      "duration": 2000.0,
+      "seed": 0,
+      "spectral_envelope": [
+        { "unit": "db", "interp": "linear", "points": [{ "t": 0.0, "v": 0.0 }] }
+      ]
+    },
+    "harmonic": {
+      "enabled": true,
+      "f0": { "unit": "hz", "interp": "linear", "points": [{ "t": 0.0, "v": 440.0 }] },
+      "partial_amplitudes": [
+        { "unit": "linear", "interp": "linear", "points": [{ "t": 0.0, "v": 1.0 }] }
+      ],
+      "inharmonicity": 0.0
+    },
+    "formant": {
+      "enabled": true,
+      "bands": [
+        {
+          "freq": { "unit": "hz", "interp": "linear", "points": [{ "t": 0.0, "v": 500.0 }] },
+          "q": { "unit": "linear", "interp": "linear", "points": [{ "t": 0.0, "v": 5.0 }] },
+          "gain": { "unit": "db", "interp": "linear", "points": [{ "t": 0.0, "v": 0.0 }] }
+        },
+        {
+          "freq": { "unit": "hz", "interp": "linear", "points": [{ "t": 0.0, "v": 1500.0 }] },
+          "q": { "unit": "linear", "interp": "linear", "points": [{ "t": 0.0, "v": 5.0 }] },
+          "gain": { "unit": "db", "interp": "linear", "points": [{ "t": 0.0, "v": 0.0 }] }
+        },
+        {
+          "freq": { "unit": "hz", "interp": "linear", "points": [{ "t": 0.0, "v": 2500.0 }] },
+          "q": { "unit": "linear", "interp": "linear", "points": [{ "t": 0.0, "v": 5.0 }] },
+          "gain": { "unit": "db", "interp": "linear", "points": [{ "t": 0.0, "v": 0.0 }] }
+        },
+        {
+          "freq": { "unit": "hz", "interp": "linear", "points": [{ "t": 0.0, "v": 3500.0 }] },
+          "q": { "unit": "linear", "interp": "linear", "points": [{ "t": 0.0, "v": 5.0 }] },
+          "gain": { "unit": "db", "interp": "linear", "points": [{ "t": 0.0, "v": 0.0 }] }
+        }
+      ]
+    }
+  }
+}

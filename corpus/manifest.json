@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "note_en": "Golden corpus for issue #10 / docs/04-metrics.md. Files are managed exactly as obtained (no resampling/normalization). This set must not change without an ADR (see docs/adr/0004-golden-corpus.md).",
   "diversity_methodology": "attack: attack_rise_ms <= 100 -> 'sharp', otherwise 'soft'. pitch: pitch_strength >= 0.5 -> 'yes', otherwise 'no'. harmonic_motion: centroid_motion_ratio > 0.4 -> 'dynamic', otherwise 'static'. These thresholds are a corpus-curation convention for this manifest only; they are NOT the metrics harness's own segment boundaries or thresholds (those remain open, see docs/06-open-questions.md Q-002/Q-004).",
   "entries": [
@@ -31,7 +31,6 @@
       "bundled": true,
       "bundled_path": "corpus/audio/sine_440hz.ogg",
       "retrieval": null,
-      "candidate_path": "corpus/audio/sine_440hz.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -44,7 +43,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": null
+      "known_limitations": null,
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "white_noise",
@@ -74,7 +74,6 @@
       "bundled": true,
       "bundled_path": "corpus/audio/white_noise.ogg",
       "retrieval": null,
-      "candidate_path": "corpus/audio/white_noise.ogg",
       "diversity": {
         "pitch": "no",
         "attack": "sharp",
@@ -87,7 +86,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": null
+      "known_limitations": null,
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "violin_pizzicato",
@@ -117,7 +117,6 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
-      "candidate_path": "corpus/.cache/violin_pizzicato.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -130,7 +129,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": null
+      "known_limitations": null,
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "violin_vibrato",
@@ -160,7 +160,6 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
-      "candidate_path": "corpus/.cache/violin_vibrato.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "soft",
@@ -173,7 +172,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": null
+      "known_limitations": null,
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "violin_tuning",
@@ -203,7 +203,6 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
-      "candidate_path": "corpus/.cache/violin_tuning.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "soft",
@@ -216,7 +215,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": "46秒の録音に複数弦の調弦・弾き直しを含む可能性が高い。アタック/倍音変動の測定値はファイル先頭のイベントに対するものであり、単一ノート音源ほどクリーンではない。"
+      "known_limitations": "46秒の録音に複数弦の調弦・弾き直しを含む可能性が高い。アタック/倍音変動の測定値はファイル先頭のイベントに対するものであり、単一ノート音源ほどクリーンではない。",
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "crash_cymbal",
@@ -246,7 +246,6 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
-      "candidate_path": "corpus/.cache/crash_cymbal.ogg",
       "diversity": {
         "pitch": "no",
         "attack": "sharp",
@@ -259,7 +258,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": "客観測定によるアタック立ち上がりは約76msで、シンバル単体の打撃としては比較的緩やか。録音にクレッシェンド気味の導入が含まれている可能性がある（詳細は docs/adr/0004-golden-corpus.md の測定方法の節を参照）。"
+      "known_limitations": "客観測定によるアタック立ち上がりは約76msで、シンバル単体の打撃としては比較的緩やか。録音にクレッシェンド気味の導入が含まれている可能性がある（詳細は docs/adr/0004-golden-corpus.md の測定方法の節を参照）。",
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "snare_drum_rim",
@@ -289,7 +289,6 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
-      "candidate_path": "corpus/.cache/snare_drum_rim.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -302,7 +301,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": null
+      "known_limitations": null,
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "rain_light",
@@ -332,7 +332,6 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
-      "candidate_path": "corpus/.cache/rain_light.ogg",
       "diversity": {
         "pitch": "no",
         "attack": "soft",
@@ -345,7 +344,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": null
+      "known_limitations": null,
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "tibetan_singing_bowl",
@@ -376,7 +376,6 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
-      "candidate_path": "corpus/.cache/tibetan_singing_bowl.flac",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -389,7 +388,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": null
+      "known_limitations": null,
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "kalimba_sample",
@@ -419,7 +419,6 @@
       "bundled": false,
       "bundled_path": null,
       "retrieval": "Not bundled in this repository. Run `python3 corpus/fetch_and_verify.py` to download from download_url into corpus/.cache/ and verify sha256.",
-      "candidate_path": "corpus/.cache/kalimba_sample.ogg",
       "diversity": {
         "pitch": "yes",
         "attack": "sharp",
@@ -432,7 +431,8 @@
           "centroid_motion_window_s": 2.0
         }
       },
-      "known_limitations": "51秒の録音で、複数の音（タイン）を順に鳴らすデモである可能性が高い。測定値はファイル先頭のイベントに対するものである。"
+      "known_limitations": "51秒の録音で、複数の音（タイン）を順に鳴らすデモである可能性が高い。測定値はファイル先頭のイベントに対するものである。",
+      "preset_path": "corpus/presets/provisional_v0.json"
     },
     {
       "id": "spoken_hello",
@@ -462,7 +462,6 @@
       "bundled": true,
       "bundled_path": "corpus/audio/spoken_hello.wav",
       "retrieval": null,
-      "candidate_path": "corpus/audio/spoken_hello.wav",
       "diversity": {
         "pitch": "yes",
         "attack": "soft",
@@ -475,8 +474,9 @@
           "centroid_motion_window_s": 0.837
         }
       },
-      "known_limitations": null
+      "known_limitations": null,
+      "preset_path": "corpus/presets/provisional_v0.json"
     }
   ],
-  "candidate_path_seam_note_en": "candidate_path (added in schema_version 1.1.0, Issue #11): the WAV/OGG path to compare each entry's target audio against. Phase 0 has no renderer yet (see docs/00-vision.md phase 1 and Issue #15's 'known decisions' section), so this is a seam: it is set to the same resolved path as the entry's own target audio (self-comparison, all diffs are 0 by construction). Once the engine renderer exists in Phase 1, this field will be replaced with the renderer's output path. harness/corpus_runner.py reads this field literally and does not know or care how it was produced."
-}
+    "preset_path_note_en": "preset_path (added in schema_version 1.2.0, P1-07 #52): the path to a preset JSON used to render each entry's candidate. Phase 1 has no per-instrument manual presets yet, so all entries share the same preliminary provisional preset (corpus/presets/provisional_v0.json) that renders silence (the engine's DSP is not implemented in P1-06, docs/02). harness/corpus_runner.py invokes luthier-render with this preset at the target's sample rate, then computes metrics against the rendered WAV. The sample-rate policy is recorded in the output vector's calc_conditions.render.sr_mismatch_policy (see docs/04-metrics.schema.json). The former self-comparison seam candidate_path is removed."
+  }

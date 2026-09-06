@@ -143,8 +143,9 @@ def _build_parser() -> argparse.ArgumentParser:
     run_corpus_parser = subparsers.add_parser(
         "run-corpus",
         help=(
-            "マニフェストの全エントリに指標算出を実行し、音源ごとのJSONと"
-            "インデックスJSONを出力先ディレクトリに書き出す（P0-11）"
+            "マニフェストの全エントリに「プリセット→レンダ→指標算出」を実行し、"
+            "音源ごとのJSONとインデックスJSONを出力先ディレクトリに書き出す"
+            "（P0-11 #11 / P1-07 #52）"
         ),
     )
     run_corpus_parser.add_argument(
@@ -158,6 +159,15 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_ATTACK_END_S,
         help="アタック区間の終端（秒）。`metrics` サブコマンドと同じ既定値・意味を持つ",
+    )
+    run_corpus_parser.add_argument(
+        "--render-bin",
+        type=Path,
+        default=None,
+        help=(
+            "レンダラ（luthier-render）のバイナリパス。#52 で追加。省略時は環境変数 "
+            "LUTHIER_RENDER_BIN から解決し、それも無ければ全エントリを欠測として記録する"
+        ),
     )
 
     diff_corpus_parser = subparsers.add_parser(
@@ -260,9 +270,10 @@ def _run_spectrogram(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_run_corpus(manifest: Path, out: Path, attack_end_s: float) -> int:
+def _run_run_corpus(manifest: Path, out: Path, attack_end_s: float, render_bin: Path | None) -> int:
+    render_cmd = [str(render_bin)] if render_bin is not None else None
     try:
-        index = run_corpus(manifest, out, attack_end_s=attack_end_s)
+        index = run_corpus(manifest, out, attack_end_s=attack_end_s, render_cmd=render_cmd)
     except ManifestError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -342,7 +353,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "spectrogram":
         return _run_spectrogram(args)
     if args.command == "run-corpus":
-        return _run_run_corpus(args.manifest, args.out, args.attack_end_s)
+        return _run_run_corpus(args.manifest, args.out, args.attack_end_s, args.render_bin)
     if args.command == "diff-corpus":
         return _run_diff_corpus(args.baseline, args.current, args.out)
     if args.command == "observe-harmonics":
