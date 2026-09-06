@@ -3,6 +3,9 @@
 - **状態**：Accepted
 - **日付**：2026-09-06
 - **追補元**：`docs/adr/0006-engine-core-language-and-build.md`（0006 は Superseded にせず Accepted のまま維持する。0006 の決定＝C++20・CMake・Catch2・nlohmann/json・`/utf-8`・スカラーループ方針はいずれも本決定と矛盾せず有効のため）
+- **改訂**：2026-09-06（Issue #90。ジョブの重複と、本ADRが要求していないCI検証を取り除くため、
+  「2. CIで検証するもの」を書き直し、「7. CI検証範囲の見直し」を追補した。サポート対象
+  プラットフォーム（上記「1.」）とMSVC・macOSに関する決定（「3.」「4.」）は変更しない）
 
 ## 背景
 
@@ -47,8 +50,8 @@ cp1252 環境に限る。ローカル日本語ロケール（cp932）のMSVCは 
 
 | OS | コンパイラ | サポート | CIで検証 | 備考 |
 |---|---|---|---|---|
-| Linux | GCC（`ubuntu-latest` が提供するもの） | 対象 | する（`ci.yml` test） | 開発・CIの基準環境 |
-| Windows | MSVC（`windows-latest` が提供するもの） | 対象 | する（`ci.yml` test-windows） | `/utf-8` を明示（cp932起因の破綻を回避） |
+| Linux | GCC（`ubuntu-latest` が提供するもの） | 対象 | する（`metrics.yml` metrics[ubuntu]。〔改訂〕旧 `ci.yml` test は重複のため廃止、下記「7.」） | 開発・CIの基準環境 |
+| Windows | MSVC（`windows-latest` が提供するもの） | 対象 | する（`ci.yml` test-windows） | `/utf-8` を明示（cp932起因の破綻を回避）。〔改訂〕指標算出（`metrics.yml` の Windows ジョブ）は行わない、下記「7.」 |
 
 - **candidate はサポート対象外だが、開発環境として維持する**（下記「3. MSVCかMinGW-w64か」参照）。
 - **macOS（clang）はフェーズ1のサポート対象に含めない**（下記「4. macOSを含めない理由」参照）。
@@ -60,13 +63,18 @@ cp1252 環境に限る。ローカル日本語ロケール（cp932）のMSVCは 
 ### 2. CIで検証するもの（対象に含めてCIで回さないものはない）
 
 サポート対象として宣言した2組（Linux/gcc、Windows/MSVC）は、**いずれもCIでビルド・テストを検証する**。
-`ci.yml` の `test`（ubuntu-latest）と `test-windows`（windows-latest、MSVC）がその実体であり、
-`ctest --test-dir engine/build --output-on-failure` を実行する。対象に含めてCIで回さない環境は存在しない
-ため、「CIで回さない対象の検証をどう担保するか」という類の問題はフェーズ1では発生しない。
+`ctest --test-dir engine/build --output-on-failure` の実行が「ビルド・テストを検証する」の実体であり、
+その担い手は Linux/gcc が `metrics.yml` の `metrics[ubuntu]`、Windows/MSVC が `ci.yml` の
+`test-windows` である（〔改訂・Issue #90〕もとは `ci.yml` の `test` と `test-windows` がその実体
+だったが、`test`（ubuntu）は `metrics[ubuntu]` の真部分集合であることが実測で確認されたため統合した。
+詳細は下記「7.」）。対象に含めてCIで回さない環境は存在しないため、「CIで回さない対象の検証をどう
+担保するか」という類の問題はフェーズ1では発生しない。
 
 「対象」を宣言したにもかかわらずCIで検証しない環境を持ち込むことは、S-002 が記録した失敗の再現
 （検証した範囲を超えて完了を主張する）に直結するため、**フェーズ1では対象＝CI検証対象**に限定する。
 対象とCI検証対象を分離する必要性は、それが実際に生じるまで導入しない（`AGENTS.md` 第8節の3回ルール）。
+この原則は〔改訂・Issue #90〕でも変えない。指標算出（`run-corpus`）の実行有無はこの原則の対象外
+であり、「対象＝CI検証対象」が指しているのは常に**ビルド・テスト**である（下記「7.」）。
 
 ### 3. MSVCかMinGW-w64か：MSVC を追認（PR #64 の決定を決定として記録）
 
@@ -140,6 +148,84 @@ Issue #67 は「`test-windows` はcp932起因の破綻を検出できない」�
   実害は閉じている。本採否は「将来の除去を防ぐ新しい仕組み」を今作るかどうかの決定であり、現状の
   ビルドは壊れていない。
 
+### 7. CI検証範囲の見直し（Issue #90 改訂）：ジョブの重複と、本ADRが要求していない検証を取り除く
+
+Issue #89（ADR非依存の即効策）を先に入れた後も残る、ADRの改訂を要する削減を本節で決定する。
+根拠は請求通知（無料枠2,000分に対し1,811分＝90%消費）と、同一コミット `541afe9` に対する
+実測（Issue #89 の表。出典：[ci run](https://github.com/ycums/llm-luthier-vst/actions/runs/34028452492) /
+[metrics run](https://github.com/ycums/llm-luthier-vst/actions/runs/34028452487)）。
+
+**削るのは2つとも「本ADR §1・§2が要求していない実行」である。** §1・§2 が要求するのは
+「Linux/gcc・Windows/MSVCの2組でビルド・テストが通ること」だけであり、指標算出（`run-corpus`）
+まで両OSで回すことも、同じ検証を複数ジョブで重複させることも要求していない。
+
+#### (a) Windows での指標算出（`metrics.yml` の Windows ジョブ）をやめる
+
+`metrics.yml` の Windows ジョブ（旧称 `metrics[windows]`）は 34分/コミット（全体の52%）を占める
+最大の単一コストだが、その大半は指標算出（`run-corpus`）であり、§1 が求める「ビルド・テストが
+通ること」ではない。Windows のビルド・テストは `ci.yml: test-windows`（16分）で引き続き検証する。
+`metrics.yml` から Windows の matrix エントリを削除し、指標算出は Linux（`metrics[ubuntu]`）のみで行う。
+
+#### (b) `ci.yml: test`（ubuntu）を廃止し `metrics[ubuntu]` に統合する
+
+ステップ列を実測で比較すると、`ci.yml: test` は `metrics[ubuntu]` の**真部分集合**である
+（configure / build / ctest / setup-python / uv / ruff / pytest はいずれも `metrics[ubuntu]`
+にも含まれる）。Linux/gcc のビルド・テスト検証を `metrics[ubuntu]` に一本化し、`ci.yml` の
+`test` ジョブは削除する。`metrics[ubuntu]` の `run-corpus`（指標算出）は #86（baseline鮮度検証。
+ubuntu の run-corpus 出力を不変条件とする決定）の前提であり、**落とせない**。
+
+#### 改訂後もビルド・テスト検証（§1）が維持されていることの対応表
+
+| 検証項目 | 改訂前 | 改訂後 |
+|---|---|---|
+| Linux/gcc ビルド・テスト | `ci.yml: test` | `metrics.yml: metrics[ubuntu]`（`configure`/`build`/`ctest` を含み実体は同一） |
+| Windows/MSVC ビルド・テスト | `ci.yml: test-windows` | 変更なし（`ci.yml: test-windows`） |
+| Linux 指標算出（`run-corpus`） | `metrics.yml: metrics[ubuntu]` | 変更なし（#86 の前提のため必須） |
+| Windows 指標算出（`run-corpus`） | `metrics.yml: metrics[windows]` | **廃止**（削減対象(a)） |
+| C++ lint（clang-format/clang-tidy） | `ci.yml: lint-cpp` | 変更なし |
+
+サポート対象＝CI検証対象（§1・§2）は Linux/gcc と Windows/MSVC のまま変わらない。変わるのは
+「指標算出をどのOSで行うか」だけであり、「サポート対象だが未検証」の環境は生まれない
+（Windows は改訂後もビルド・テストがCIで検証され続ける）。
+
+#### Q-016（コンパイラ間のビット一致）との関係
+
+Q-016（`docs/06-open-questions.md`）は「コンパイラ間（gcc/MSVC）のビット一致は保証しない」ことを
+明示しており、未解決である。この未解決が `metrics[windows]` の要否にどう影響するかは、残す場合と
+落とす場合で次のように異なる。
+
+- **`metrics[windows]` を残す場合**：Q-016が未解決である以上、Linuxの指標とWindowsの指標が一致する
+  保証はない。両者が食い違っても、それがコンパイラ差（libmの丸め）によるものかエンジンのバグに
+  よるものか、指標の値だけからは区別できない。したがって両OSで指標算出を続けても「値が違う」という
+  情報しか増えず、34分/コミットのコストに見合わない。
+- **`metrics[windows]` を落とす場合（本改訂の採用）**：Windows側の責務を「ビルド・テストが通ること」
+  （`ctest`。§1）に限定するため、Q-016の未解決は運用上の障害にならない。指標算出をLinux（基準環境、
+  §1「開発・CIの基準環境」）に一本化することで、指標の解釈にコンパイラ差を持ち込まない。Q-016が
+  将来解決した場合、Windows指標算出の再開を検討する余地は残す（下記「将来への注記」）。
+
+#### 効果（実測ベースの見積り）
+
+Issue #89 が測った同一コミットのジョブ別課金分（分。切り上げ・Windowsは×2課金込み）から、
+削減対象(a)(b)を除いた場合の1コミットあたりの課金分を見積もる。
+
+| ジョブ | 改訂前 | 改訂後 |
+|---|---:|---:|
+| `ci.yml: test`（ubuntu） | 4 | 0（`metrics[ubuntu]` に統合） |
+| `ci.yml: lint-cpp`（ubuntu） | 2 | 2 |
+| `ci.yml: test-windows`（windows、×2課金込み） | 16 | 16 |
+| `metrics.yml: metrics[ubuntu]` | 9 | 9 |
+| `metrics.yml: metrics[windows]`（windows、×2課金込み） | 34 | 0（廃止） |
+| **計** | **65** | **27（-58%）** |
+
+この見積りは各ジョブの実測値（Issue #89 の表）をそのまま使っており、ジョブ構成の変更のみを
+反映した机上計算である。改訂後の実際のワークフロー（本ADRはコードを変更しない、下記「結果」）が
+入った時点の1コミット分の実測値は、実装Issueで#89と同じ方法（同一コミットのジョブ別課金分を
+Actions run から算出）で確認し、実装Issueの完了条件とする。
+
+さらにFetchContent（Catch2/nlohmann-json）のキャッシュを入れた場合は約20分（-69%）まで下がる
+見込みだが、これは実装量が大きいため本ADRでは決定せず、実装Issueで扱う候補とする
+（下記「将来への注記」）。
+
 ## 検討した案（採用しなかった案とその理由）
 
 `docs/adr/README.md`「採用しなかった案とその理由を必ず書くこと」に従い、本決定に至るまでに検討した
@@ -180,6 +266,33 @@ Issue #67 は「`test-windows` はcp932起因の破綻を検出できない」�
 - **却下理由**：上記「6.」参照。3回ルールの適用について本ADRが選ぶ読み方では、同種失敗は1件（S-002）で
   あり、「先回りして環境を整えない」（`AGENTS.md` 第8節）に該当する。導入は引き金（あと2回）に委ねる。
 
+### 案7（Issue #90）：`metrics[windows]` を残す（現状維持）
+
+- **却下理由**：上記「7.」の「Q-016との関係」参照。Q-016が未解決のため、両OSの指標が一致する保証が
+  そもそも無い。一致しない可能性のある値を2環境で出し続けても得られる情報は増えない。Windowsで必要な
+  「ビルド・テストが通ること」は `ci.yml: test-windows`（16分）で満たされており、指標算出の34分/コミット
+  はそれに対して不要なコストである。
+
+### 案8（Issue #90）：`ci.yml: test`（ubuntu）を残す（`metrics[ubuntu]` との重複を容認する）
+
+- **却下理由**：ステップ列の実測比較で `ci.yml: test` が `metrics[ubuntu]` の真部分集合であることが
+  確認されている（上記「7.」）。重複を残す実益はなく、4分/コミットが純粋な無駄になる。
+
+### 案9（Issue #90）：`ci.yml: test-windows` も削り、Windowsのビルド・テスト検証を `metrics.yml` に一本化する
+
+- **却下理由**：本Issueのスコープ外である「Windowsでのビルド・テストの停止」に実質的に踏み込む
+  （ジョブの器を変えるだけでも、ビルド・テストの成否判定を指標ジョブに混在させることになる）。
+  `metrics.yml` は Q-006 の暫定方針により**指標の値がどうあれワークフロー自体を失敗させない**設計
+  （ヘッダコメント参照）であり、ビルド・テストの成否判定（`ctest` の失敗）をこの設計の上に混在させると、
+  「このジョブの失敗が指標の問題なのかビルド・テストの問題なのか」が曖昧になる。ビルド・テストの検証は
+  専用の軽量ジョブ（`ci.yml: test-windows`）に残す。
+
+### 案10（Issue #90）：FetchContentキャッシュや `push: main` の重複実行削減を本ADRで同時に決定する
+
+- **却下理由**：Issue #90 の完了条件・スコープ外節のとおり、実装量を伴う施策の採否はADR確定後の
+  実装Issueに送る（`AGENTS.md` 第5節「仕様変更を含むPRでの実装変更は不可」）。本ADRはこれらの採否を
+  決めない（下記「将来への注記」）。
+
 ## 将来への注記
 
 - **VSTプラグイン層（フェーズ4）で対象プラットフォームが増えうる。** プラグインは macOS のDAW
@@ -188,12 +301,26 @@ Issue #67 は「`test-windows` はcp932起因の破綻を検出できない」�
   を語らない。
 - **Q-008（GUIフレームワーク選定）は未解決のまま**（`docs/06-open-questions.md`）。本ADRは GUI・プラグイン
   層に触れず、`core` の独立性を保つ限り選択の自由度は失われない（`docs/adr/0006` と同じ判断）。
+- **〔改訂・Issue #90〕Q-016（コンパイラ間のビット一致）が将来解決した場合**、Windowsでの指標算出
+  （`metrics[windows]`）の再開を検討する余地を残す。現時点では再開の判断はしない（未解決のまま）。
+- **〔改訂・Issue #90〕FetchContent（Catch2/nlohmann-json）のキャッシュ、および `push: main` の
+  重複実行削減**は、実装Issueで扱う候補として送る。前者はビルド時間短縮の見込み（約20分/コミット、
+  上記「7.」）があるが実装量が大きく、後者は #86（baseline鮮度検証）の main 実行前提との整合を
+  #86 の実装確定後に判断する必要があるため、いずれも本ADRでは採否を決めない。
 
 ## 結果
 
 - 本ADRはコードを追加・変更しない（`AGENTS.md` 第5節「仕様変更を含むPRの実装変更は不可」によるメタADR）。
+  ワークフロー（`.github/workflows/ci.yml` / `metrics.yml`）の変更は、本ADR確定後に起票する実装Issueで行う。
 - サポート対象＝CI検証対象は Linux（gcc）と Windows（MSVC）の2つ。macOS・MinGW-w64・C4819エラー化は
   却下。MSVCを追認、`/utf-8` を明示、CIは単一コンフィグ（WindowsはNinja）で固定。
 - `#67` の検出手段3案は「識別済みだが未採用」とし、導入の引き金（同種失敗あと2件）を記録した。
-- 本決定の根拠は `docs/log/session-log.md` の S-002（および後続の S-003）である。
+- **〔改訂・Issue #90〕** ビルド・テスト検証の担い手を、Linux/gcc は `ci.yml: test` から
+  `metrics.yml: metrics[ubuntu]` に統合し、Windows/MSVC は `ci.yml: test-windows` のまま変更しない
+  （上記「7.」対応表）。指標算出（`run-corpus`）は Linux（`metrics[ubuntu]`）のみで行い、Windows
+  （`metrics[windows]`）では行わない。見積りで1コミットあたりの課金分は65分から27分（-58%）に減る。
+- 本決定の根拠は `docs/log/session-log.md` の S-002（および後続の S-003）と、Issue #90 が引用する
+  請求通知・ジョブ別実測（Issue #89 の表）である。
 - 下流のIssue（#52〜#57）の完了条件は、本ADRの「サポート対象＝CI検証対象」の定義に従うことになる。
+  本ADR確定後の実装Issueは、上記「7.」の対応表に従って `.github/workflows/ci.yml` と `metrics.yml`
+  を変更し、実測で削減効果（見積り27分/コミット）を確認することを完了条件とする。
