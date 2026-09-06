@@ -425,46 +425,59 @@ TEST_CASE("Transient: deterministic and duration-based across sample rates") {
 // formant を無効化してあり、ここでは formant の「結線」だけを検証する。
 // ---------------------------------------------------------------------------
 
-TEST_CASE("render applies formant filter to the mix when enabled (resonance boost)") {
+TEST_CASE("render applies formant filter at the band centre frequency to the mix") {
     const double fs = 44100.0;
-    nlohmann::json j = minimalValidPreset();
-    j["layers"]["transient"]["enabled"] = false;
-    j["layers"]["harmonic"]["enabled"] = true;
-    j["layers"]["harmonic"]["f0"] = tsJson("hz", {"linear", {{0.0, 220.0}}});
-    j["layers"]["harmonic"]["partial_amplitudes"] = nlohmann::json::array();
-    j["layers"]["harmonic"]["partial_amplitudes"].push_back(
-        tsJson("linear", {"linear", {{0.0, 1.0}}}));
-    j["layers"]["harmonic"]["inharmonicity"] = 0.0;
+    const double kQ = 10.0, kGainDb = 0.0;
 
-    // 単一バンド：中心を正弦の周波数 220Hz に当てて +12dB の共振を置く。
-    nlohmann::json band;
-    band["freq"] = tsJson("hz", {"linear", {{0.0, 220.0}}});
-    band["q"] = tsJson("linear", {"linear", {{0.0, 10.0}}});
-    band["gain"] = tsJson("db", {"linear", {{0.0, 12.0}}});
-    j["layers"]["formant"]["enabled"] = true;
-    j["layers"]["formant"]["bands"] = nlohmann::json::array();
-    j["layers"]["formant"]["bands"].push_back(band);
-
-    const auto loud = render(parsePreset(j), fs);
-
-    // 同じ加算結果への「バイパス（formant 無効）」を比較に使う。
-    nlohmann::json jb = j;
-    jb["layers"]["formant"]["enabled"] = false;
-    const auto raw = render(parsePreset(jb), fs);
-
-    REQUIRE(loud.size() == raw.size());
-    REQUIRE_FALSE(loud.empty());
-    const auto steadyRms = [&](const std::vector<double>& s) {
+    // Harmonic 単一倍音（220Hz 正弦）。transient は無効にする。
+    // docs/02 は formant バンド数を v0 では4個固定としており、ローダが厳密に実施する
+    // （preset_loader）。ここでは4バンドすべてを同一の probe 周波数に置く（並列バンクの
+    // 選択性検証として十分）。
+    const auto basePreset = [&](double centreHz, bool formantEnabled) {
+        nlohmann::json j = minimalValidPreset();
+        j["layers"]["transient"]["enabled"] = false;
+        j["layers"]["harmonic"]["enabled"] = true;
+        j["layers"]["harmonic"]["f0"] = tsJson("hz", {"linear", {{0.0, 220.0}}});
+        j["layers"]["harmonic"]["partial_amplitudes"] = nlohmann::json::array();
+        j["layers"]["harmonic"]["partial_amplitudes"].push_back(
+            tsJson("linear", {"linear", {{0.0, 1.0}}}));
+        j["layers"]["harmonic"]["inharmonicity"] = 0.0;
+        j["layers"]["formant"]["enabled"] = formantEnabled;
+        j["layers"]["formant"]["bands"] = nlohmann::json::array();
+        for (int i = 0; i < 4; ++i) {
+            nlohmann::json band;
+            band["freq"] = tsJson("hz", {"linear", {{0.0, centreHz}}});
+            band["q"] = tsJson("linear", {"linear", {{0.0, kQ}}});
+            band["gain"] = tsJson("db", {"linear", {{0.0, kGainDb}}});
+            j["layers"]["formant"]["bands"].push_back(band);
+        }
+        return j;
+    };
+    const auto steadyRms = [](const std::vector<double>& s) {
         return segmentRms(s, s.size() / 2, s.size());
     };
-    const double rawRms = steadyRms(raw);
-    const double formantRms = steadyRms(loud);
-    REQUIRE(std::isfinite(rawRms));
-    REQUIRE(std::isfinite(formantRms));
-    // 正弦の周波数に合わせた共振は定常部を強調する（G≈Q/√2 の帯域通過ゲイン）。
-    REQUIRE(formantRms > 2.0 * rawRms);
-    // 有効なときは必ず加算結果に適用される（バイパスでない）。
-    REQUIRE_FALSE(loud == raw);
+
+    const auto onAt = [&](double centreHz) {
+        return render(parsePreset(basePreset(centreHz, true)), fs);
+    };
+
+    // バイパス（formant 無効）＝加算結果そのもの。
+    const auto bypass = render(parsePreset(basePreset(220.0, false)), fs);
+
+    // 正弦の周波数 220Hz にバンド中心を当てた場合と、大きく外した場合で、
+    // 定常部 RMS が変わる（＝フィルタが周波数選択的に mix へ効いている）。
+    const auto at220 = onAt(220.0);
+    const auto at4000 = onAt(4000.0);
+
+    REQUIRE_FALSE(at220.empty());
+    REQUIRE(at220.size() == bypass.size());
+    REQUIRE(std::isfinite(steadyRms(at220)));
+    REQUIRE(std::isfinite(steadyRms(at4000)));
+    const double farRms = steadyRms(at4000);
+    // 中心を正弦に合わせたバンドの方が遠いバンドより強く出力を通す（スペクトル選択性）。
+    REQUIRE(steadyRms(at220) > 5.0 * farRms);
+    // formant が有効なときは加算結果に必ず適用される（バイパスと同一にならない）。
+    REQUIRE_FALSE(at220 == bypass);
 }
 
 TEST_CASE("render with formant is deterministic; toggling formant changes the output") {
