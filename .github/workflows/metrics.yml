@@ -18,10 +18,24 @@ name: Metrics
 
 on:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   # 手動実行。同一コミットに対する複数回実行の決定論検証（Issue #13 完了条件）に使う。
+  # workflow_dispatch は paths-ignore の対象外（手動起動のため常に実行される）。
   workflow_dispatch:
+
+# 同一ブランチへの連続pushで古いrunをキャンセルする（Issue #89）。ブランチ保護は
+# 無効（required status checksなし、実測: `branches/main` の `protected: false`）
+# のため、キャンセルされたrunがマージをブロックする心配はない。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   metrics:
