@@ -16,6 +16,7 @@ add_library(luthier_core STATIC
     src/preset_loader.cpp
     src/routing.cpp
     src/render.cpp
+    src/formant.cpp
     src/wav_writer.cpp
 )
 

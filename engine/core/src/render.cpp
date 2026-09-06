@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "luthier/formant.hpp"
 #include "luthier/preset_error.hpp"
 #include "luthier/timeseries.hpp"
 
@@ -27,7 +28,7 @@ double maxT(const TimeseriesArray& arr, double acc) {
 }
 
 // ---------------------------------------------------------------------------
-// 共通の Timeseries 補間（docs/03「時系列の表現）。3実装（P1-08 の sampleTimeseries /
+// 共通の Timeseries 補間（docs/03「時系列の表現」）。3実装（P1-08 の sampleTimeseries /
 // P1-09 の evalTimeseries / P1-10 の evaluateTimeseries）を、P1-08 で追加された
 // 唯一の補間関数 `sampleTimeseries`（timeseries.hpp、linear/exp/step/spline 対応）に
 // 統一する。P1-09 の「exp/spline は v0.1 では未実装 → 黙って線形化せず PresetError
@@ -192,19 +193,21 @@ std::vector<double> renderTransient(const TransientLayer& layer, double sample_r
     return out;
 }
 
+// 全レイヤーをレンダして足し合わせ、最後に Formant filter bank を通す。
 std::vector<double> render(const Preset& preset, double sample_rate_hz) {
     const double durationS = computeRenderDurationSeconds(preset);
     const std::size_t sampleCount =
         static_cast<std::size_t>(std::llround(durationS * sample_rate_hz));
 
     // 層構成（docs/02-engine-spec.md 層[3]）：
-    //   Transient（P1-09）+ Harmonic（P1-08）を出力長に足し合わせて返す。
-    //   Formant filter bank（P1-10）はスタックの次段でこの出力を受ける（ここでは未適用）。
+    //   1) Transient（P1-09）+ Harmonic 加算合成（P1-08）を出力長に足し合わせる。
+    //   2) 加算結果に Formant filter bank（P1-10）を適用。
+    //      applyFormant は formant.enabled==false のとき入力をそのまま返す（バイパス）。
     std::vector<double> out = renderHarmonic(preset.harmonic, sampleCount, sample_rate_hz);
     const std::vector<double> tr = renderTransient(preset.transient, sample_rate_hz);
     const std::size_t m = std::min(tr.size(), out.size());
     for (std::size_t i = 0; i < m; ++i) out[i] += tr[i];
-    return out;
+    return applyFormant(preset.formant, out, sample_rate_hz);
 }
 
 std::vector<double> renderSilence(const Preset& preset, double sample_rate_hz) {
