@@ -23,8 +23,11 @@
   `corpus/observations/harmonic_structure/`）。`harmonic_amplitude_motion`は0.59〜4.25、
   `non_integer_partial_ratio`は0.06〜0.38の幅があり、コーパスは倍音構造の観点で単調ではない
   （詳細は同ディレクトリのREADME参照）。本PRは観測のみを行い方式の決定はP1-03に委ねる
-- **暫定の扱い**：`docs/03` でインタフェースだけ切り、実装を保留
-- **状態**：open
+- **決定（P1-03 ADR-0007）**：加算合成を採用した。観測対象の実在楽器音源6件のうち5件で
+  `harmonic_amplitude_motion`（倍音振幅比の変動係数）が1.0を超え、コーパスの大半で倍音バランスが
+  時間的に大きく動くことが確認されたため。詳細・却下した案（ウェーブテーブル）とその理由は
+  `docs/adr/0007-harmonic-layer-additive-synthesis.md` 参照
+- **状態**：resolved（ADR-0007）
 
 ## Q-002. 成功判定の閾値
 - **何が不明か**：各指標が「フィット成功」と言える値
