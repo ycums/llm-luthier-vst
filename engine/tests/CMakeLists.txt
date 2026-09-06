@@ -14,6 +14,7 @@ add_executable(luthier_core_tests
     test_preset_loader.cpp
     test_routing.cpp
     test_render.cpp
+    test_timeseries_interp.cpp
     test_wav_writer.cpp
 )
 target_link_libraries(luthier_core_tests PRIVATE luthier_core Catch2::Catch2WithMain)
