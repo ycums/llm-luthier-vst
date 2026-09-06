@@ -11,13 +11,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# ソースはUTF-8で記述している（日本語コメント、docs/adr/0006）。MSVCは既定で
-# アクティブコードページ（日本語ロケールではcp932/Shift-JIS）と誤解してC4819
-# を出しながらパースし、コメント・文字列リテラルを壊すため、/utf-8 を明示する。
-# GCC/Clang は既定でUTF-8扱いのため不要（CI=ubuntu/gcc では顕在化しない、
-# ローカルWindows/MSVCでのみ必要）。
+# 【Issue #67 検証用の一時変更】
+# /utf-8 を外して test-windows ジョブが日本語ロケール破綻を検出できるか実測する。
+# この変更は検証専用であり、main にはマージしない。
 if(MSVC)
-    add_compile_options(/utf-8)
+    # add_compile_options(/utf-8)
 endif()
 
 # 決定論・サンプルレート非依存の担保（docs/adr/0006「決定論・サンプルレート
