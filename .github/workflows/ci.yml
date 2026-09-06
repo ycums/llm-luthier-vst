@@ -19,37 +19,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      # エンジンコア・ヘッドレスCLIレンダラのビルドとテスト（docs/adr/0006、
-      # Issue #51「エンジンのビルドとテストがCIで実行される」）。
-      # ビルド済みバイナリのパスは LUTHIER_RENDER_BIN として後続のpytestに渡す
-      # （tests/test_engine_cli_wav_compat.py が、CLIの出力がharnessの音声I/O層
-      # で読めることを検証する）。
-      - name: Configure engine (CMake)
-        run: cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
-      - name: Build engine
-        run: cmake --build engine/build --parallel
-      - name: Test engine (ctest)
-        run: ctest --test-dir engine/build --output-on-failure
-      - name: Export engine binary path
-        run: echo "LUTHIER_RENDER_BIN=$(pwd)/engine/build/cli/luthier-render" >> "$GITHUB_ENV"
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-      - name: Install uv
-        run: pip install uv
-      - name: Install dependencies
-        run: uv sync --extra dev
-      - name: Lint (ruff)
-        run: uv run ruff check .
-      - name: Test (pytest)
-        run: uv run pytest -q
-
   # C++ の整形（clang-format）と静的解析（clang-tidy）を検証するジョブ
   # （docs/adr/0010-cpp-lint-tooling.md）。対象はエンジンの本番ソース（core+cli）。
   # テストソースはビルド/ctest で検証するため clang-tidy の対象外。
@@ -83,7 +52,8 @@ jobs:
 
   # Windows（MSVC）での開発環境が壊れていないことの保証（Issue #51「環境前提」）。
   # ローカルWindowsで /utf-8 を当てて全テストが通ることを確認済みだが、それをGitHub
-  # Actionsのランナーで再現する。ubuntu ジョブと同内容を windows-latest で回す。
+  # Actionsのランナーで再現する。Linux/gcc のビルド・テストは metrics.yml の
+  # metrics[ubuntu] が担う（#94／docs/adr/0008 §7。旧 ci.yml: test は重複のため廃止）。
   # エンジンはMSVCでビルドするため、MSVCの環境変数を設定してから Ninja でConfigureする
   # （デフォルトのVisual Studioジェネレータはマルチコンフィグでビルド種別の扱いが
   # 変わり、バイナリ配置も Debug/Release に分かれるため、単一コンフィグの Ninja に

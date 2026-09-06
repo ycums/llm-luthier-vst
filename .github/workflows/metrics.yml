@@ -11,18 +11,18 @@ name: Metrics
 # および corpus/baseline/ の鮮度検証（下記）が不一致を検出した場合のみ。
 #
 # #88（#86の決定の実装）：corpus/baseline/ が現在のエンジンでの run-corpus 出力に追いついて
-# いるかを ubuntu-latest ジョブに限って検証する（docs/04-metrics.md「更新手順」）。
-# Windows（MSVC）では検証しない（docs/06-open-questions.md Q-016「コンパイラ間のビット一致は
-# 保証しない」により恒常的な誤検出になるため）。判定はビット完全一致（許容誤差なし）。
+# いるかを検証する（docs/04-metrics.md「更新手順」）。判定はビット完全一致（許容誤差なし）。
 # 非同梱音源の取得失敗（status: missing）は誤検出を避けるため比較対象から除外する
 # （詳細は harness/baseline_freshness.py のモジュールdocstring）。
 #
 # #52：レンダラ（engine/cli の luthier-render）を先にビルドし、そのバイナリパスを
-# LUTHIER_RENDER_BIN として run-corpus と成果物の一環で使う。docs/adr/0008 の
-# サポート対象プラットフォーム（Linux/gcc・Windows/MSVC）の両方で回す。
-# Windows（MSVC）はローカル検証手順と同じく /utf-8（CMake側）と -G Ninja を使い、
-# ハーネス側は日本語stdoutのための PYTHONIOENCODING=utf-8 を設定する（PR #64 で対処済みの
-# 文字コード扱いを metrics.yml でも踏襲する）。
+# LUTHIER_RENDER_BIN として run-corpus と成果物の一環で使う。
+#
+# 〔改訂・#94／docs/adr/0008 §7〕本ジョブは ubuntu-latest のみで実行する。指標算出
+# （run-corpus）はQ-016（コンパイラ間のビット一致を保証しない）により Linux（開発・CIの
+# 基準環境）に一本化し、Windows（MSVC）では行わない。Windowsのビルド・テストは
+# `ci.yml: test-windows` が引き続き検証する。旧 `ci.yml: test`（ubuntu）は本ジョブの
+# 真部分集合だったため廃止し、Linux/gcc のビルド・テスト検証は本ジョブに統合した。
 
 on:
   pull_request:
@@ -46,40 +46,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 〔改訂・#94〕Windowsエントリを外すとmatrixはubuntu-latest 1件のみになるため、
+  # matrix構造を残さず単一ジョブに単純化する（AGENTS.md第8節「先回りして環境を整えない」。
+  # Q-016解決等でWindows指標算出を再開する場合はその時点でmatrixに戻す）。
   metrics:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runs-on: ubuntu-latest
-            render_bin: engine/build/cli/luthier-render
-            generator_flag: ""
-          - runs-on: windows-latest
-            render_bin: engine/build/cli/luthier-render.exe
-            generator_flag: "-G Ninja"
-    runs-on: ${{ matrix.runs-on }}
-    defaults:
-      run:
-        # 両プラットフォームで bash を既定のシェルにする（Windows でも git-bash が
-        # ランナーに用意されている。後続の steps を POSIX 構文で書くため）。
-        shell: bash
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
-      # Windows（MSVC）でエンジンをビルドするには MSVC 環境変数が必要（ci.yml と同じ手順）。
-      - name: Set up MSVC environment (Windows)
-        if: matrix.runs-on == 'windows-latest'
-        uses: ilammy/msvc-dev-cmd@v1
-
-      # Configure engine（Windowsは単一コンフィグの Ninja に固定。docs/adr/0008§5）。
       - name: Configure engine
-        run: cmake -S engine -B engine/build ${{ matrix.generator_flag }} -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
       - name: Build engine
         run: cmake --build engine/build --parallel
       - name: Test engine (ctest)
         run: ctest --test-dir engine/build --output-on-failure
       - name: Export engine binary path
-        run: echo "LUTHIER_RENDER_BIN=$(pwd)/${{ matrix.render_bin }}" >> "$GITHUB_ENV"
+        run: echo "LUTHIER_RENDER_BIN=$(pwd)/engine/build/cli/luthier-render" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v6
         with:
@@ -146,9 +128,6 @@ jobs:
           PYTHONIOENCODING: utf-8
 
       - name: Check corpus/baseline/ freshness (#88 / #86の決定の実装)
-        # ubuntu-latest（docs/adr/0008 の基準環境）に限定する。Windows（MSVC）では
-        # 恒常的な誤検出になるため検証しない（Q-016、上部コメント参照）。
-        if: matrix.runs-on == 'ubuntu-latest'
         run: |
           uv run python -m harness check-baseline-freshness \
             --baseline corpus/baseline \
@@ -172,7 +151,7 @@ jobs:
       - name: Upload metrics vectors (成果物)
         uses: actions/upload-artifact@v4
         with:
-          name: metrics-vectors-${{ matrix.runs-on }}
+          name: metrics-vectors
           path: metrics_output/current
 
       - name: Diff against baseline (前回コミットとの差分)
@@ -190,7 +169,7 @@ jobs:
       - name: Upload diff (成果物)
         uses: actions/upload-artifact@v4
         with:
-          name: metrics-diff-${{ matrix.runs-on }}
+          name: metrics-diff
           path: metrics_output/diff
 
       - name: Write job summary
@@ -200,7 +179,6 @@ jobs:
         # 二重実装しない（AGENTS.md第8節「先回りして環境を整えない」）。
         env:
           PYTHONIOENCODING: utf-8
-          RUNS_ON: ${{ matrix.runs-on }}
           FETCH_CORPUS_OUTCOME: ${{ steps.fetch_corpus.outcome }}
           RUN_CORPUS_ELAPSED_S: ${{ steps.run_corpus.outputs.elapsed_s }}
           DIFF_CORPUS_ELAPSED_S: ${{ steps.diff_corpus.outputs.elapsed_s }}
@@ -216,7 +194,7 @@ jobs:
 
           print("## 指標ベクトル自動出力（P0-13 / P1-07）")
           print()
-          print(f"- platform: {os.environ['RUNS_ON']}")
+          print("- platform: ubuntu-latest")
           print(f"- fetch corpus audio: {os.environ['FETCH_CORPUS_OUTCOME']}"
                 "（失敗しても run-corpus 側の欠測記録に委ねて続行する）")
           print(f"- run-corpus: {index['summary']} / 所要 {os.environ['RUN_CORPUS_ELAPSED_S']}s")
