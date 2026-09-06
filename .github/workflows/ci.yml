@@ -10,6 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # エンジンコア・ヘッドレスCLIレンダラのビルドとテスト（docs/adr/0006、
+      # Issue #51「エンジンのビルドとテストがCIで実行される」）。
+      # ビルド済みバイナリのパスは LUTHIER_RENDER_BIN として後続のpytestに渡す
+      # （tests/test_engine_cli_wav_compat.py が、CLIの出力がharnessの音声I/O層
+      # で読めることを検証する）。
+      - name: Configure engine (CMake)
+        run: cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
+      - name: Build engine
+        run: cmake --build engine/build --parallel
+      - name: Test engine (ctest)
+        run: ctest --test-dir engine/build --output-on-failure
+      - name: Export engine binary path
+        run: echo "LUTHIER_RENDER_BIN=$(pwd)/engine/build/cli/luthier-render" >> "$GITHUB_ENV"
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
@@ -21,3 +36,49 @@ jobs:
         run: uv run ruff check .
       - name: Test (pytest)
         run: uv run pytest -q
+
+  # Windows（MSVC）での開発環境が壊れていないことの保証（Issue #51「環境前提」）。
+  # ローカルWindowsで /utf-8 を当てて全テストが通ることを確認済みだが、それをGitHub
+  # Actionsのランナーで再現する。ubuntu ジョブと同内容を windows-latest で回す。
+  # エンジンはMSVCでビルドするため、MSVCの環境変数を設定してから Ninja でConfigureする
+  # （デフォルトのVisual Studioジェネレータはマルチコンフィグでビルド種別の扱いが
+  # 変わり、バイナリ配置も Debug/Release に分かれるため、単一コンフィグの Ninja に
+  # 固定してローカル検証手順と一致させる）。
+  test-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure engine (CMake/Ninja)
+        run: cmake -S engine -B engine/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build engine
+        run: cmake --build engine/build --parallel
+      - name: Test engine (ctest)
+        run: ctest --test-dir engine/build --output-on-failure
+      - name: Export engine binary path (Windows)
+        run: echo "LUTHIER_RENDER_BIN=$(pwd)/engine/build/cli/luthier-render.exe" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Lint (ruff)
+        run: uv run ruff check .
+      - name: Test (pytest)
+        # ハーネスCLI（python -m harness / python -m harness metrics）は日本語をstdoutに
+        # 出力する。WindowsランナーのPython既定エンコーディングはcp1252のため、そのまま
+        # 動かすと UnicodeEncodeError / UnicodeDecodeError（charmap）で落ちる
+        # （test_cli.py / test_metrics.py の3件。エンジンとは無関係のハーネス側の文字コード
+        # 問題）。PYTHONIOENCODING=utf-8 を設定してUTF-8で扱わせる。
+        run: uv run pytest -q
+        env:
+          PYTHONIOENCODING: utf-8
