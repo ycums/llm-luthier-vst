@@ -37,6 +37,37 @@ jobs:
       - name: Test (pytest)
         run: uv run pytest -q
 
+  # C++ の整形（clang-format）と静的解析（clang-tidy）を検証するジョブ
+  # （docs/adr/0010-cpp-lint-tooling.md）。対象はエンジンの本番ソース（core+cli）。
+  # テストソースはビルド/ctest で検証するため clang-tidy の対象外。
+  lint-cpp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      # clang-format と clang-tidy をバージョン固定で導入する（ローカル実測と同一
+      # の挙動を CI で再現するため。clang-format 23.1.0 / clang-tidy 22.1.8）。
+      - name: Install clang tools
+        run: |
+          pip install "clang-format==23.1.0" "clang-tidy==22.1.8"
+      # clang-format の整形違反を検出。--dry-run で差分がある場合に非ゼロ終了。
+      # engine/build/（FetchContent が取得するサードパーティ・ビルド生成物）は
+      # 対象外。
+      - name: Check formatting (clang-format)
+        run: |
+          find engine -path engine/build -prune -o -name '*.cpp' -print -o -name '*.hpp' -print | \
+            while read -r f; do clang-format --dry-run --Werror "$f" || exit 1; done
+      # clang-tidy 用に compile_commands.json を作るため CMake を configure する
+      # （ビルドは不要。コマンド情報のみ生成）。
+      - name: Configure engine for clang-tidy
+        run: cmake -S engine -B engine/build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Static analysis (clang-tidy)
+        run: |
+          clang-tidy -p engine/build engine/core/src/*.cpp engine/cli/src/*.cpp
+
   # Windows（MSVC）での開発環境が壊れていないことの保証（Issue #51「環境前提」）。
   # ローカルWindowsで /utf-8 を当てて全テストが通ることを確認済みだが、それをGitHub
   # Actionsのランナーで再現する。ubuntu ジョブと同内容を windows-latest で回す。
