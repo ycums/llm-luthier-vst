@@ -29,10 +29,13 @@ std::vector<double> renderTransient(const TransientLayer& layer, double sample_r
 // プリセットをレンダし、モノラル浮動小数点サンプル列（[-1,1]）を返す。
 //
 // 層構成（docs/02-engine-spec.md 層[3]）：
-//   [1] Transient 層 \__/
-//   [2] Harmonic 層  /   →（加算）→ 全サンプルを出力長に合わせて足す
-// P1-08/P1-09 の統合（スタック積み上げの中間段階）時点では、この加算結果をそのまま
-// 返す。Formant filter bank（P1-10）はスタックの次段でこの出力を受ける。
+//   [1] Transient / Noise ──┐
+//   [2] Harmonic / Body    ──┼──→ [3] Formant filter bank ──→ out
+//                           ┘
+// 実装順（P1-08/P1-09/P1-10 のスタック統合）：
+//   1. Transient（P1-09）と Harmonic 加算合成（P1-08）を出力長に足し合わせる。
+//   2. その加算結果に Formant filter bank（P1-10）を適用する。`formant.enabled ==
+//      false` のときは applyFormant 内で入力がそのまま返る（バイパス）。
 // 無効な層は出力に一切寄与しない（各層の enabled ゲート）。
 //
 // docs/02-engine-spec.md「実装上の制約」：

@@ -102,6 +102,10 @@ nlohmann::json harmonicPresetJson(const TsSpec& f0, const std::vector<TsSpec>& p
         j["layers"]["harmonic"]["partial_amplitudes"].push_back(tsJson("linear", p));
     }
     j["layers"]["harmonic"]["inharmonicity"] = inharmonicity;
+    // Formant 層は Harmonic の単体解析検証の対象外のため有効化しない（統合後の
+    // render() は enabled な formant を加算結果に適用する。無効化して Harmonic を
+    // 単体検証する。Formant の結線は本ファイル末尾の統合テストで検証する）。
+    j["layers"]["formant"]["enabled"] = false;
     return j;
 }
 
@@ -413,4 +417,83 @@ TEST_CASE("Transient: deterministic and duration-based across sample rates") {
         REQUIRE(s.size() == static_cast<std::size_t>(std::llround(0.5 * sr)));
         REQUIRE(anyNonZero(s));
     }
+}
+
+// ---------------------------------------------------------------------------
+// 統合：render() が Transient + Harmonic の加算結果に Formant filter bank を適用する
+// （docs/02-engine-spec.md 層[3]、P1-10 #55）。※Harmonic 単体の解析検証（上記）は
+// formant を無効化してあり、ここでは formant の「結線」だけを検証する。
+// ---------------------------------------------------------------------------
+
+TEST_CASE("render applies formant filter to the mix when enabled (resonance boost)") {
+    const double fs = 44100.0;
+    nlohmann::json j = minimalValidPreset();
+    j["layers"]["transient"]["enabled"] = false;
+    j["layers"]["harmonic"]["enabled"] = true;
+    j["layers"]["harmonic"]["f0"] = tsJson("hz", {"linear", {{0.0, 220.0}}});
+    j["layers"]["harmonic"]["partial_amplitudes"] = nlohmann::json::array();
+    j["layers"]["harmonic"]["partial_amplitudes"].push_back(
+        tsJson("linear", {"linear", {{0.0, 1.0}}}));
+    j["layers"]["harmonic"]["inharmonicity"] = 0.0;
+
+    // 単一バンド：中心を正弦の周波数 220Hz に当てて +12dB の共振を置く。
+    nlohmann::json band;
+    band["freq"] = tsJson("hz", {"linear", {{0.0, 220.0}}});
+    band["q"] = tsJson("linear", {"linear", {{0.0, 10.0}}});
+    band["gain"] = tsJson("db", {"linear", {{0.0, 12.0}}});
+    j["layers"]["formant"]["enabled"] = true;
+    j["layers"]["formant"]["bands"] = nlohmann::json::array();
+    j["layers"]["formant"]["bands"].push_back(band);
+
+    const auto loud = render(parsePreset(j), fs);
+
+    // 同じ加算結果への「バイパス（formant 無効）」を比較に使う。
+    nlohmann::json jb = j;
+    jb["layers"]["formant"]["enabled"] = false;
+    const auto raw = render(parsePreset(jb), fs);
+
+    REQUIRE(loud.size() == raw.size());
+    REQUIRE_FALSE(loud.empty());
+    const auto steadyRms = [&](const std::vector<double>& s) {
+        return segmentRms(s, s.size() / 2, s.size());
+    };
+    const double rawRms = steadyRms(raw);
+    const double formantRms = steadyRms(loud);
+    REQUIRE(std::isfinite(rawRms));
+    REQUIRE(std::isfinite(formantRms));
+    // 正弦の周波数に合わせた共振は定常部を強調する（G≈Q/√2 の帯域通過ゲイン）。
+    REQUIRE(formantRms > 2.0 * rawRms);
+    // 有効なときは必ず加算結果に適用される（バイパスでない）。
+    REQUIRE_FALSE(loud == raw);
+}
+
+TEST_CASE("render with formant is deterministic; toggling formant changes the output") {
+    const double fs = 44100.0;
+    nlohmann::json j = minimalValidPreset();
+    j["layers"]["transient"]["enabled"] = false;
+    j["layers"]["formant"]["enabled"] = true;
+
+    // 加算結果が無音（harmonic も無効）なら formant でも無音のまま。
+    j["layers"]["harmonic"]["enabled"] = false;
+    Preset silent = parsePreset(j);
+    REQUIRE(allZero(render(silent, fs)));
+
+    // harmonic を有効にしたとき、formant の有効/無効で出力が異なる。
+    j["layers"]["harmonic"]["enabled"] = true;
+    j["layers"]["harmonic"]["f0"] = tsJson("hz", {"linear", {{0.0, 220.0}}});
+    j["layers"]["harmonic"]["partial_amplitudes"] = nlohmann::json::array();
+    j["layers"]["harmonic"]["partial_amplitudes"].push_back(
+        tsJson("linear", {"linear", {{0.0, 1.0}}}));
+    j["layers"]["harmonic"]["inharmonicity"] = 0.0;
+
+    nlohmann::json jOff = j;
+    jOff["layers"]["formant"]["enabled"] = false;
+
+    const auto onA = render(parsePreset(j), fs);
+    const auto onB = render(parsePreset(j), fs);
+    const auto off = render(parsePreset(jOff), fs);
+    REQUIRE_FALSE(onA.empty());
+    REQUIRE_FALSE(off.empty());
+    REQUIRE(onA == onB);       // 決定論（同一入力・同一 seed）
+    REQUIRE_FALSE(onA == off); // enabled のとき加算結果に formant が適用される
 }
