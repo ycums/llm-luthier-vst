@@ -147,3 +147,47 @@ PRは以下を超えてはならない。超える場合は分割する。
 ## 11. 用語
 
 `docs/05-glossary.md` の用語を使う。特に「残差」「能力ギャップ」「フィット誤差」「マクロ軸」は定義が厳密に決まっているので、日常語として流用しないこと。
+
+---
+
+## 12. ローカル Windows/MSVC ビルドの確定レシピ
+
+このリポジトリは Windows/MSVC（`vcvars64.bat` 環境）をサポート対象に含む（`docs/adr/0008`）。**ローカルの C++ ビルド・テストを CLI（git-bash / MSYS）から起動するときは、この節の手順で行うこと。** 別の方法（下記「ダメな例」）は MSYS のパス変換でコマンドが実行されず、環境要因でトークンと時間を無駄にする（`docs/log/session-log.md` S-005）。
+
+### ステップ1: ビルド一式を `.bat` に書く
+
+`.bat` は Windows ネイティブのテキスト（CRLF）で書く。worktree内のどこでもよい（例: `<repo>/.worktrees/<name>/engine/build_verify.bat`）。
+
+```bat
+@echo off
+call "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+cd /d "C:\フルパス\...\engine"
+cmake -S . -B build -G Ninja
+cmake --build build
+ctest --test-dir build --output-on-failure
+echo BUILD_RC=%ERRORLEVEL%
+```
+
+### ステップ2: bash から実行する（この変数2つが鍵）
+
+```bash
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' cmd.exe /c "C:\\フルパス\\...\\engine\\build_verify.bat"
+```
+
+- **`MSYS_NO_PATHCONV=1` と `MSYS2_ARG_CONV_EXCL='*'` を必ず指定する**。これが無いと、`cmd.exe /c` に渡す引数が MSYS のパス変換で壊れ、コマンドが実行されない
+- `build_verify.bat` のフルパスはネイティブ Windows 形式（`C:\...\`）。環境変数の問題を避けるため `.bat` 内の `call` も巻き込まれないよう、リポジトリはそのまま
+
+### ダメな例（MSYS で壊れる）
+
+- `cmd //c "call vcvars64.bat && cmake --build ..."` — `//c` がネイティブ `cmd /c` にならず**インタラクティブな cmd プロンプトが起動して止まる**
+- `cmd.exe //c "....bat"` — 同様に壊れる
+- コマンド内に複合 `&&` / `|` や長いワンライナーを詰め込む — Hermes の `terminal` ではハードライン制限（パース不能 = ブロックリスト）に当たり、実行すらされない。**コマンドを分解して1つずつ実行する**
+
+### pytest 実行（ハーネス）
+
+Python 側（`tests/`、`harness/`）は `pytest` をリポジトリの venv で実行する。**`LUTHIER_RENDER_BIN` 環境変数は必ず「現在作業している worktree の」CLI バイナリを指すように設定すること。** 別の worktree のバイナリを指したままだと、ビルドが通ったのに pytest が偽の結果になる（過去に発生。P1-10）。worktree（`.worktrees/<name>/`）をまたぐ作業では環境変数を毎回明示的に設定し直す。
+
+### 従属注意: stacked PR / 複数worktree
+
+- 複数 worktree（`.worktrees/`）を並行使用するとき、それぞれに独立した `engine/build/` を持つ。ビルド毎に自分がいる worktree のパスを確認してから実行すること
+- GitHub の stacked PR で API からマージする場合、`gh pr merge` は拒否され、`PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge-async`（非同期マージAPI）を使う（詳細は GitHub docs「Merge a pull request asynchronously」）。最上位の PR のマージがスタック全体をマージする
