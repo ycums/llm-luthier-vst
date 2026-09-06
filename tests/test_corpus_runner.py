@@ -21,7 +21,6 @@ Issue #11 + #52 の完了条件を検証する：
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -262,11 +261,11 @@ def test_error_entry_is_recorded_with_render_failure_in_missing_reason(
 
 
 def test_renderer_unavailable_records_all_entries_as_missing(
-    mixed_manifest: Path, tmp_path: Path
+    mixed_manifest: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """レンダラ未指定（環境変数も無い）→ 全エントリを欠測として記録し、完走する（#52）。"""
-    # 環境変数を確実に消してから実行する。
-    os.environ.pop(RENDER_BIN_ENV, None)
+    # 環境変数を確実に消してから実行する（monkeypatchで後始末し、他テストへ漏らさない）。
+    monkeypatch.delenv(RENDER_BIN_ENV, raising=False)
     out_dir = tmp_path / "out"
     index = run_corpus(mixed_manifest, out_dir)  # render_cmd省略
 
@@ -285,9 +284,9 @@ def test_renderer_unavailable_records_all_entries_as_missing(
 
 
 def test_renderer_unavailable_still_completes_with_returncode_zero(
-    mixed_manifest: Path, tmp_path: Path
+    mixed_manifest: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    os.environ.pop(RENDER_BIN_ENV, None)
+    monkeypatch.delenv(RENDER_BIN_ENV, raising=False)
     exit_code = cli_main(
         ["run-corpus", "--manifest", str(mixed_manifest), "--out", str(tmp_path / "out")]
     )
@@ -376,7 +375,7 @@ def test_cli_run_corpus_exit_code_is_nonzero_when_an_entry_errors(
     assert exit_code == 1
 
 
-def test_cli_run_corpus_exit_code_is_zero_when_only_missing(tmp_path: Path) -> None:
+def test_cli_run_corpus_exit_code_is_zero_when_only_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """レンダラ未指定（環境変数も無い）→ 全エントリ欠測で完走 → 0（#52 完了条件）。
 
     レンダ不能な環境でも run-corpus は正常終了する（欠測を error 扱いにしない）。
@@ -407,7 +406,7 @@ def test_cli_run_corpus_exit_code_is_zero_when_only_missing(tmp_path: Path) -> N
     manifest_path = repo_root / "corpus" / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
 
-    os.environ.pop(RENDER_BIN_ENV, None)
+    monkeypatch.delenv(RENDER_BIN_ENV, raising=False)
     exit_code = cli_main(
         ["run-corpus", "--manifest", str(manifest_path), "--out", str(tmp_path / "out")]
     )
@@ -430,12 +429,12 @@ def test_cli_run_corpus_exit_code_is_two_for_unreadable_manifest(tmp_path: Path)
 
 
 def test_real_corpus_manifest_runs_to_completion_with_bundled_entries_ok(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """実際の `corpus/manifest.json`（Issue #10 / #52）を通しで実行し、欠測・失敗を
     記録しつつ完走することを確認する。同梱済みエントリ（sine_440hz / white_noise /
     spoken_hello）はレンダ可能でok、非同梱（取得していない）は欠測になる。"""
-    os.environ.pop(RENDER_BIN_ENV, None)
+    monkeypatch.delenv(RENDER_BIN_ENV, raising=False)
     index = run_corpus(REAL_MANIFEST_PATH, tmp_path / "out", render_cmd=_render_cmd())
 
     assert index["entry_count"] == 11
