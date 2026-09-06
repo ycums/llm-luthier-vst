@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "luthier/preset.hpp"
+#include "luthier/render.hpp"
 
 namespace luthier {
 
@@ -18,8 +19,13 @@ namespace luthier {
 //   `sampleTimeseries`（timeseries.hpp、P1-08、docs/03「時系列の表現」）により評価する。
 //   係数は毎サンプル再導出するため、時変係数の急変でも発散しない
 //   （docs/adr/0006「係数もサンプルレートを引数として都度導出」）。
+//
+// `mod_offsets` が nullptr でない場合、P1-11（#56）の加算方式の変調を適用する。
+// 目的パス `formant.bands[b].freq` / `.q` / `.gain` に対応するサンプル列を、
+// それぞれの基底値に加算する。
 std::vector<double> applyFormant(const FormantLayer& layer,
                                  const std::vector<double>& input,
-                                 double sample_rate_hz);
+                                 double sample_rate_hz,
+                                 const ModulationOffsetMap* mod_offsets = nullptr);
 
 }  // namespace luthier
