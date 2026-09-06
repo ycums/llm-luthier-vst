@@ -15,6 +15,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 add_library(luthier_core STATIC
     src/preset_loader.cpp
     src/routing.cpp
+    src/modulation.cpp
     src/render.cpp
     src/formant.cpp
     src/wav_writer.cpp
