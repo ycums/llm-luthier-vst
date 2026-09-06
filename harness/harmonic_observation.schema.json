@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ycums/llm-luthier-vst/blob/main/harness/harmonic_observation.schema.json",
+  "title": "Harmonic Structure Observation",
+  "description": "P1-02（Issue #47）がQ-001（docs/06-open-questions.md）の判断材料として出力する、コーパス1音源あたりの倍音構造観測結果。エンジンの実装を前提とせず、target音声そのものの倍音振幅比の時間変動（harmonic_amplitude_motion）と非整数次成分の割合（non_integer_partial_ratio）のみを観測する。合成方式（加算合成かウェーブテーブルか）の決定は行わない（P1-03の範囲）。バージョニングはdocs/04-metrics.schema.jsonと同じセマンティックバージョニングに従う。バージョンはcalc_conditions.schema_versionに記録する。",
+  "type": "object",
+  "required": [
+    "target",
+    "status",
+    "status_detail",
+    "voiced_frame_ratio",
+    "harmonic_amplitude_motion",
+    "non_integer_partial_ratio",
+    "calc_conditions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "target": {
+      "type": "string",
+      "minLength": 1,
+      "description": "観測対象の識別子（コーパス実行時はマニフェストのid、単独実行時はファイル名）。"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "no_pitch", "missing_audio", "error"],
+      "description": "ok=実測できた。no_pitch=音声は読めたがf0推定（pYIN）で有声フレームが1つも見つからず倍音構造を定義できない（音高を持たない音源として明示的に記録する、打楽器・ノイズ等）。missing_audio=音声ファイルが手元に存在しない。error=観測処理が例外で失敗した。no_pitch/missing_audioは欠測だがvalidな状態として扱う（docs/04-metrics.md）。"
+    },
+    "status_detail": {
+      "type": ["string", "null"],
+      "description": "statusが\"ok\"以外のときの理由。okのときはnull。"
+    },
+    "voiced_frame_ratio": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "全フレームに対するpYIN有声フレームの割合。status=ok/no_pitchで算出される。missing_audio/errorではnull。"
+    },
+    "harmonic_amplitude_motion": { "$ref": "#/$defs/metric_value" },
+    "non_integer_partial_ratio": { "$ref": "#/$defs/metric_value" },
+    "calc_conditions": { "$ref": "#/$defs/calc_conditions" }
+  },
+  "$defs": {
+    "metric_value": {
+      "description": "指標1件の値。欠測時はvalue=nullかつmissing_reasonに理由を書く（docs/04-metrics.schema.jsonと同じ規則）。",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "value": { "type": "number" },
+            "missing_reason": { "type": "null" }
+          },
+          "required": ["value", "missing_reason"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "value": { "type": "null" },
+            "missing_reason": { "type": "string", "minLength": 1 }
+          },
+          "required": ["value", "missing_reason"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "calc_conditions": {
+      "description": "この観測を算出したときの設定条件。ここに記録された値そのものの妥当性は本Issueの完了条件に含めない（帯域分割・倍音数の妥当性は観測してから決める）。",
+      "type": "object",
+      "required": [
+        "schema_version",
+        "n_harmonics",
+        "harmonic_search_bins",
+        "no_pitch_voiced_ratio_threshold",
+        "min_relative_harmonic_amplitude",
+        "f0_estimation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "n_harmonics": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "倍音の同定を試みた最大次数。ナイキスト周波数を超える次数はその音源・フレームでは算出対象から除く。"
+        },
+        "harmonic_search_bins": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "理想周波数（k*f0）の中心ビンから前後何ビンの範囲でピークを探すか（実測のわずかな不整合・調律ずれを許容するため）。"
+        },
+        "no_pitch_voiced_ratio_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "有声フレーム比率がこの値未満の音源をstatus=no_pitchとして記録する閾値（harness/harmonic_observation.pyのモジュールdocstring「音高を持たない音源の扱い」参照。実測値に基づくヒューリスティック）。"
+        },
+        "min_relative_harmonic_amplitude": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "基音に対する平均振幅比がこの値未満の倍音次数を、harmonic_amplitude_motionの変動係数平均から除外する閾値（DEFAULT_MIN_RELATIVE_HARMONIC_AMPLITUDEのdocstring参照。ノイズフロアの見かけ上の変動を実在する倍音の動きと誤認しないため）。"
+        },
+        "f0_estimation": {
+          "type": "object",
+          "required": ["name", "version", "fmin_hz", "fmax_hz", "frame_length", "hop_length"],
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "fmin_hz": { "type": "number", "exclusiveMinimum": 0 },
+            "fmax_hz": { "type": "number", "exclusiveMinimum": 0 },
+            "frame_length": { "type": "integer", "minimum": 1 },
+            "hop_length": { "type": "integer", "minimum": 1 }
+          },
+          "description": "f0推定（倍音の同定に使う）のアルゴリズムとパラメータ。docs/06-open-questions.md Q-011の暫定の扱いに従い、harness.metrics.estimate_f0_contourの既定値をそのまま流用する（本観測のために推定方式・パラメータを選び直さない）。"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "target": "violin_vibrato",
+  "status": "ok",
+  "status_detail": null,
+  "voiced_frame_ratio": 0.5167322834645669,
+  "harmonic_amplitude_motion": {
+    "value": 1.3105303704270876,
+    "missing_reason": null
+  },
+  "non_integer_partial_ratio": {
+    "value": 0.125119058212685,
+    "missing_reason": null
+  },
+  "calc_conditions": {
+    "schema_version": "1.0.0",
+    "n_harmonics": 8,
+    "harmonic_search_bins": 2,
+    "no_pitch_voiced_ratio_threshold": 0.15,
+    "min_relative_harmonic_amplitude": 0.01,
+    "f0_estimation": {
+      "name": "pyin",
+      "version": "0.11.0",
+      "fmin_hz": 60.0,
+      "fmax_hz": 1000.0,
+      "frame_length": 2048,
+      "hop_length": 256
+    }
+  }
+}

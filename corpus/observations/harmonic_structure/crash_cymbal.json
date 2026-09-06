@@ -1,0 +1,29 @@
+{
+  "target": "crash_cymbal",
+  "status": "no_pitch",
+  "status_detail": "有声フレーム比率が0.0448（閾値0.15未満）であり、音高を持たない音源として明示的に記録する（打楽器・ノイズ等）",
+  "voiced_frame_ratio": 0.04481132075471698,
+  "harmonic_amplitude_motion": {
+    "value": null,
+    "missing_reason": "有声フレーム比率が0.0448（閾値0.15未満）であり、音高を持たない音源として明示的に記録する（打楽器・ノイズ等）"
+  },
+  "non_integer_partial_ratio": {
+    "value": null,
+    "missing_reason": "有声フレーム比率が0.0448（閾値0.15未満）であり、音高を持たない音源として明示的に記録する（打楽器・ノイズ等）"
+  },
+  "calc_conditions": {
+    "schema_version": "1.0.0",
+    "n_harmonics": 8,
+    "harmonic_search_bins": 2,
+    "no_pitch_voiced_ratio_threshold": 0.15,
+    "min_relative_harmonic_amplitude": 0.01,
+    "f0_estimation": {
+      "name": "pyin",
+      "version": "0.11.0",
+      "fmin_hz": 60.0,
+      "fmax_hz": 1000.0,
+      "frame_length": 2048,
+      "hop_length": 256
+    }
+  }
+}
