@@ -10,8 +10,21 @@ description: セッションIDを1行だけ出力し、他には何もしない�
 
 ## 手順
 
-1. `mcp__ccd_session_mgmt__get_session` を `session_id: "self"` で呼び、
-   返り値の `sessionId` フィールドの値を取得する。
+1. 自分自身のセッション情報を取得するツールを呼ぶ。
+   - `mcp__ccd_session_mgmt__get_session` は**存在しない環境がある**
+     (2026-09-07時点、2つの独立した環境で確認: `claude.ai/code` の
+     リモートセッション、および本セッション自身。いずれも
+     `ToolSearch` が該当ツールを発見できなかった)。まず `ToolSearch`
+     で `get_session` を検索し、見つかったツール(確認済みの例:
+     `mcp__Claude_Code_Remote__get_session`)を使う。ツール名は
+     環境によって異なりうるため、ハードコードせず都度確認すること。
+   - `mcp__Claude_Code_Remote__get_session` の場合、`session_id` は
+     **省略**すると呼び出し元自身のセッション情報を返す(確認済み)。
+     `"self"` のような特殊値を渡す仕様ではない。
+   - 返り値の構造はツールにより異なる。`mcp__Claude_Code_Remote__get_session`
+     の場合、セッションIDはトップレベルの `sessionId` ではなく
+     **`ccr.id`** に入っている(確認済み)。トップレベルに `sessionId`
+     フィールドが存在する保証はない。
 2. 取得した値**のみ**を、前置き・説明・挨拶・コードブロック・その他の
    装飾を一切付けずに1行で出力する。
 3. これ以外のツール呼び出しは行わない。ファイルの読み書き、調査、
