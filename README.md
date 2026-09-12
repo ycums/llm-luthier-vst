@@ -39,3 +39,11 @@
 4. `docs/06-open-questions.md`（まだ決まっていないこと）
 
 `docs/02` `docs/03` は仕様が固まる前の暫定版なので、実装に入る直前に読めばよい。
+
+## ライセンス
+
+MIT License（`LICENSE`）。選定理由は `docs/adr/0011-license-selection.md` を参照。
+
+`corpus/audio/` に同梱している音源はCC0またはPD-ineligible（帰属表示不要で再配布可能なもの
+のみ）。それ以外のゴールデン音源セットの構成音源はCC BY-SAで、リポジトリには同梱せず
+`corpus/fetch_and_verify.py` で取得する。詳細は `corpus/README.md` を参照。
