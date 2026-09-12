@@ -7,17 +7,26 @@
 ジョブでは呼ばない（`docs/06-open-questions.md` Q-016「コンパイラ間のビット一致は保証しない」により、
 恒常的な誤検出になるため）。
 
-## 一致の判定方法：ビット完全一致（許容誤差なし）
+## 一致の判定方法：許容誤差付き比較（`math.isclose`、Issue #108、`docs/adr/0008` 8.）
 
-Issue #88 実装時、この判定方法を実測してから決める必要があった
-（`AGENTS.md` 第6節「未確定事項を推測で埋めない」、`docs/04-metrics.md`）。
-ubuntu-latestに近いLinux/gcc環境でエンジンをビルドし `run-corpus` を実行して
-`corpus/baseline/` と比較したところ、鮮度が保たれていた10音源（`tibetan_singing_bowl` を除く
-全音源）は、全指標値が浮動小数点の等価比較（`==`）でビット単位一致した。唯一の不一致だった
-`tibetan_singing_bowl` は許容誤差の問題ではなく、実際の陳腐化（PR #85 でのWikimediaレート制限に
-よる音源再取得失敗時に、既存baselineをやむを得ずそのまま保持した既知の限界。同PR本文参照）
-だった。許容誤差を設けるべき実測上の根拠が確認できなかったため、許容誤差は設けずビット完全一致を
-要求する。
+Issue #88 実装時はビット完全一致（許容誤差なし）を要求していたが、Issue #96 で
+`main` 上の鮮度検証が同一のエンジンソース・baseline・ランナーイメージ・gccバージョンの2 run
+でpass/failに割れることが実測された（詳細・実測根拠は `docs/adr/0008`「8.」）。原因は
+NumPy / OpenBLAS が実行時にCPUに応じて演算カーネルを選ぶことによるULP差（最大相対2.4e-15）で
+あり、ハーネスのバグではない。エンジンのレンダWAVの決定論（`docs/02-engine-spec.md`）は
+変更していない——CI上の「決定論の確認」は指標JSONではなくレンダWAVのバイト列（
+`renders/*.wav` のハッシュ）で行う（`.github/workflows/metrics.yml`）。
+
+この観測を踏まえ、両側とも値を持つ指標については
+`math.isclose(baseline, current, rel_tol=1e-12, abs_tol=1e-12)` で判定する。
+`rel_tol=1e-12` は観測したノイズの最大（2.4e-15）の約250倍、検出したい最小の変化
+（1サンプルをfloat32で1刻み動かした場合の最小7.2e-11）の約1/70に置かれている
+（対数上ほぼ中央、`docs/adr/0008`「8.」(c) 3.）。`abs_tol=1e-12` は `transient_env_corr` の
+ように値が0付近をとりうる指標で相対差が発散するのを避けるための絶対差の下限であり、
+観測した絶対差の最大（9.4e-16）の約1000倍に置かれている。
+
+片方だけが欠測（値の有無が基準/今回で食い違う）の場合と、baseline側にエントリが無い場合は、
+欠測を暗黙に0として扱わないため、従来どおり許容誤差なしで不一致とする。
 
 ## status: "ok" 以外（missing / error）の扱い
 
@@ -46,12 +55,18 @@ status: "error"（レンダ・指標算出が例外で失敗）も同じ理由�
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from harness.metrics_diff import diff_metrics_vector
 
 #: 鮮度検証結果JSON自体の構造のバージョン（指標ベクトル・差分JSONのスキーマバージョンとは別物）。
 FRESHNESS_SCHEMA_VERSION = "1.0.0"
+
+#: 一致判定の許容誤差（`docs/adr/0008`「8.」(c) 3.決定）。根拠はモジュールdocstring
+#: 「一致の判定方法」参照。両方が値を持つ指標にのみ適用し、欠測の有無の食い違いには適用しない。
+_REL_TOL = 1e-12
+_ABS_TOL = 1e-12
 
 #: `corpus/baseline/` の更新手順（不一致検出時のメッセージに含める、Issue #88完了条件）。
 _FIX_COMMAND = "python -m harness run-corpus --manifest corpus/manifest.json --out corpus/baseline/"
@@ -98,11 +113,13 @@ def _iter_leaf_diffs(node: object, path: str = ""):
 def _mismatches(diff: dict) -> list[dict]:
     """`diff_metrics_vector` の出力から、基準/今回で値が一致しない指標のパス一覧を抽出する。
 
-    不一致とするのは次のいずれか（モジュールdocstring「一致の判定方法」参照。ビット完全一致）：
+    不一致とするのは次のいずれか（モジュールdocstring「一致の判定方法」参照。
+    `math.isclose(rel_tol=1e-12, abs_tol=1e-12)` による許容誤差付き比較）：
 
-    - 両方が値を持ち、値そのものが異なる（`diff["diff"] != 0.0`）
-    - 片方だけが欠測（値の有無が基準/今回で食い違う）。両方欠測（区間境界が未注釈の音源など、
-      既知の欠測が両側で一致している場合）は、差を捏造しないため不一致に含めない
+    - 両方が値を持ち、`math.isclose` が偽（許容誤差を超えて値が異なる）
+    - 片方だけが欠測（値の有無が基準/今回で食い違う）。欠測を暗黙に0として扱わないため、
+      許容誤差は適用せず常に不一致とする。両方欠測（区間境界が未注釈の音源など、既知の欠測が
+      両側で一致している場合）は、差を捏造しないため不一致に含めない
     """
     compared = {k: v for k, v in diff.items() if k in ("overall", "segments", "bands", "trajectories")}
     mismatches = []
@@ -110,7 +127,10 @@ def _mismatches(diff: dict) -> list[dict]:
         before, after = leaf["before"], leaf["after"]
         if before is None and after is None:
             continue
-        if before is None or after is None or leaf["diff"] != 0.0:
+        if before is None or after is None:
+            mismatches.append({"path": path, "baseline": before, "current": after})
+            continue
+        if not math.isclose(before, after, rel_tol=_REL_TOL, abs_tol=_ABS_TOL):
             mismatches.append({"path": path, "baseline": before, "current": after})
     return mismatches
 
