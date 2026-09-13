@@ -116,7 +116,7 @@ candidate_compared = candidate[0 : n]
 
 整列を適用していない指標ベクトル（現行の `corpus/baseline/` など）は `time_alignment` を持たない。両者は `calc_conditions.time_alignment` の有無で区別できる。
 
-`schema_version` の扱い：`calc_conditions.time_alignment` の追加は省略可能なフィールドの追加なので **minor**（`2.1.0` → `2.2.0`）。バージョンの値は出力側（`harness/metrics.py` の `SCHEMA_VERSION`）が持つため、**上げるのは整列を実装する #126** である。`docs/04-metrics.schema.json` 側は本Issueで先に新しくなり、`2.1.0` の既存出力と `corpus/baseline/` は追加フィールドが任意であるため新スキーマでも valid のまま検証を通る（仕様PRと実装PRの間でCIを壊さない）
+`schema_version` の扱い：`calc_conditions.time_alignment` の追加は省略可能なフィールドの追加なので **minor**（`2.1.0` → `2.2.0`）。バージョンの値は出力側（`harness/metrics.py` の `SCHEMA_VERSION`）が持つため、**上げるのは整列を実装する #126** である。`docs/04-metrics.schema.json` は本Issueで `time_alignment` を定義する（このファイル自体は版番号を持たず、版は出力の `calc_conditions.schema_version` が持つ。`harness/metrics.py` の `SCHEMA_VERSION` は本Issueでは `2.1.0` のまま）。`2.1.0` の既存出力と `corpus/baseline/` の指標ベクトルは追加フィールドが任意であるため新スキーマでも valid のまま検証を通る（仕様PRと実装PRの間でCIを壊さない）
 
 ### 区間境界との関係
 
