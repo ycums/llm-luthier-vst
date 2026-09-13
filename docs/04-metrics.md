@@ -289,6 +289,19 @@ gcc 13.3.0）でエンジンをビルドし、非同梱音源を取得したう�
 出力される。これは「悪化」ではなく、比較対象そのものが変わったことによる変化である
 （#52 注意、前後の値は比較不能）。層のDSP実装（P1-08以降）まで、この状態が続く。
 
+**〔改訂・Issue #118〕上記「candidate は全エントリで無音になる」は P1-08〜P1-11 で解消した。**
+層のDSP実装（P1-08 Harmonic/Body #53、P1-09 Transient/Noise #54、P1-10 Formant filter bank
+#55、P1-11 Modulation matrix #56）により、共通暫定プリセット `corpus/presets/provisional_v0.json`
+は transient・harmonic（f0=440Hz、単一パーシャル）・formant の各層を有効にしたプリセットになり、
+無音を鳴らさなくなった（`corpus/manifest.json` の `preset_path_note_en` も参照。なお、上で引用
+した「docs/02『この時点では4層とも音を出さない』」という文言は現行の `docs/02-engine-spec.md`
+には存在しない）。`corpus/baseline/` の軌跡指標（`transient_env_corr` / `f0_dist` /
+`formant_dist`）は欠測から実数値になった（例：`sine_440hz` は `transient_env_corr=0.541`,
+`f0_dist=3.479`。残る欠測は `sine_440hz` のフォルマント軌跡距離と `snare_drum_rim` の f0軌跡
+距離のみ、docs/00-vision.md）。無音時代のbaselineが実際どのような値だったかは、上記「一致の
+判定方法の実測」節に記録が残っている（`tibetan_singing_bowl` の無音レンダ時代の値：
+`overall.loudness_diff_db` が `-209.59`）。
+
 ## 未確定
 
 - 各指標の重み付け（そもそも重み付けして総合スコアを作るべきかを含む）
