@@ -33,10 +33,15 @@ def test_main_no_args_prints_help_and_exits_zero() -> None:
 
 def test_module_entrypoint_help_exits_zero() -> None:
     # `python -m harness --help` としての起動確認（サブプロセス経由）。
+    # `--help` の出力は日本語（parserのdescription/help文言）を含み、CLIは常にUTF-8で
+    # 出力する（Issue #111）。`encoding`を指定しない場合、decodeにOSロケール依存の
+    # エンコーディングが使われ、UTF-8出力とロケールが一致しない環境（例:日本語版Windows
+    # のcp932）でUnicodeDecodeErrorになる。
     result = subprocess.run(
         [sys.executable, "-m", "harness", "--help"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
 

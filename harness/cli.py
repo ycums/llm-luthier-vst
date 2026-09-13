@@ -384,6 +384,19 @@ def _run_check_baseline_freshness(baseline: Path, current: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # 標準出力のエンコーディングをOSロケールに関わらずUTF-8に固定する。
+    # 固定しない場合、パイプ経由の標準出力はOSロケール依存のエンコーディング
+    # （日本語版WindowsではCP932）で書き込まれる。本CLIは日本語を含むJSON
+    # （harness.metricsのmissing_reason等）を標準出力に出すため、UTF-8を仮定して
+    # 読む側（`python -m harness ...`をsubprocessで起動しUTF-8としてdecodeする
+    # tests/test_metrics.py等）がUnicodeDecodeErrorになる（Issue #111）。
+    # pytestのcapture等、reconfigureを持たないストリームに差し替えられている
+    # 場合は何もしない。
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 

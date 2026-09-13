@@ -22,6 +22,7 @@ Issue #6 の完了条件を検証する：
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -417,6 +418,44 @@ def test_cli_metrics_subcommand_outputs_valid_json(fixtures) -> None:
         text=True,
         encoding="utf-8",
         check=True,
+    )
+
+    vector = json.loads(result.stdout)
+    jsonschema.validate(instance=vector, schema=_load_schema())
+
+
+def test_cli_metrics_subcommand_outputs_valid_json_regardless_of_child_locale(
+    fixtures,
+) -> None:
+    """子プロセスの既定エンコーディングが cp932 等 UTF-8 以外でも、CLIの標準出力は
+    常に有効なUTF-8のJSONになる（Issue #111）。
+
+    実機の不具合は日本語ロケールのWindows（cp932）でのみ再現し、CIランナーの既定
+    ロケール（cp1252 / UTF-8）では自然には起きない。`PYTHONIOENCODING` で子プロセスの
+    標準出力エンコーディングを明示的にcp932へ固定し、ホストの実ロケールに依存せず
+    再現・検証する。
+    """
+    out_dir, meta = fixtures
+    p = _pair_meta(meta, "a_identical")
+
+    env = dict(os.environ)
+    env.pop("PYTHONUTF8", None)
+    env["PYTHONIOENCODING"] = "cp932"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "harness",
+            "metrics",
+            str(out_dir / p["target"]),
+            str(out_dir / p["candidate"]),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+        env=env,
     )
 
     vector = json.loads(result.stdout)
