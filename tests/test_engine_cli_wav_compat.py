@@ -95,6 +95,8 @@ def test_rendered_wav_is_readable_by_harness_audio_io(tmp_path: Path) -> None:
         [str(binary), str(preset_path), str(output_path), "--sample-rate", "48000"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -126,6 +128,8 @@ def test_engine_renders_silence_when_all_layers_disabled(tmp_path: Path) -> None
         [str(binary), str(preset_path), str(output_path), "--sample-rate", "48000"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -152,6 +156,8 @@ def test_engine_stops_on_a_preset_with_an_unknown_field(tmp_path: Path) -> None:
         [str(binary), str(preset_path), str(output_path)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
