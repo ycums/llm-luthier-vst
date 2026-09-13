@@ -64,7 +64,63 @@
 - **ずらし量**は、target のファイル内で candidate のノートオンに当たる時刻である。ゴールデン音源セットの現行11件すべてについて、所有者が聴いて付与した値を前提データとして記録し、それを使う。オンセットのない音源も所有者が明示的に 0 を付与する。エージェントは値を決めず、閾値検出や指標最小化で得た値を代わりに使わない
 - **target のずらし量より前の区間は比較に含めない。** 全体・区間別・帯域別・軌跡のいずれの指標も、整列した target と candidate の組に対して算出する
 
-**実装はまだない。** ずらし量の付与とハーネスでの適用が済むまで、`corpus/baseline/` の指標値は target と candidate を同じ絶対時刻で比較した値であり、時間ずれによる誤差を含む。ずらし量の記録形式・長さの扱い・`calc_conditions` への記録は下記「未確定」。
+**実装はまだない。** ずらし量の付与とハーネスでの適用が済むまで、`corpus/baseline/` の指標値は target と candidate を同じ絶対時刻で比較した値であり、時間ずれによる誤差を含む。ずらし量の記録形式・長さの扱い・`calc_conditions` への記録は下記の各小節で決めた。
+
+### ずらし量の記録形式（前提データ）
+
+ずらし量は `corpus/manifest.json` の各エントリに `time_alignment` オブジェクトとして記録する（値の付与は #125、所有者作業）。
+
+```json
+"time_alignment": {
+  "target_note_on_s": 0.222,
+  "assigned_by": "ycums",
+  "method": "owner_listening",
+  "assigned_on": "2026-09-13"
+}
+```
+
+- `target_note_on_s`：単位は**秒**（標本数ではない）。target のファイル内で candidate のノートオンに当たる時刻。値域は `0 <= target_note_on_s < duration_s`。秒に固定する理由は、`duration_s` / `sample_rate` と同じ単位系で持ち、標本数で記録するとサンプルレートの異なる音源間で値の意味が変わるため
+- 所有者がミリ秒で示した値は **1000 で割ってそのまま書く**（丸めない）。丸めを入れると同じ付与から同じ指標が再現できなくなる。実装が標本位置へ変換するときの規則は `round(target_note_on_s * sample_rate)` に固定する（最も近い整数へ、半端は 0 から遠い側）。この変換は決定的であり、エージェントが規則を選ぶ余地はない
+- `assigned_by` / `method` / `assigned_on`：**前提データであること**の記録。`method` の許容値は現行 `"owner_listening"` のみとする。エージェントが閾値検出や指標最小化で得た値を記録する表現を、形式として持たない（ADR-0012 (C)）
+- **値が無いエントリはエラー**（整列できない音源として停止する）。既定値で補わない。`null` も書かない（欠落と「明示的な 0」が区別できなくなる）。オンセットが音源の先頭にある、またはオンセットという事象がないと所有者が判断した場合は、`0` を明示的に書く
+- `corpus/manifest.json` の `schema_version` はフィールド追加なので minor（`1.2.0` → `1.3.0`）。**値が実際に記録されるとき（#125）に揃えて上げる。** 値が1件も無い段階で版だけ上げると、形式と内容が一致しない中間状態が残る
+- マニフェストの全フィールドを定義する仕様文書は現状なく、本節は `time_alignment` の記録形式のみを定める（他のフィールドの文書化は本Issueの範囲外）
+
+### 整列で比較する信号の長さ
+
+整列で比較する信号は、**整列後の target と candidate の短い方に長さを合わせ、両方を整列後の起点からその長さだけ取る**。
+
+```text
+n = min(N_target_after_shift, N_candidate)
+target_compared    = target[shift_samples : shift_samples + n]
+candidate_compared = candidate[0 : n]
+```
+
+- **ずらし量より前は比較に含めない。** candidate を遅らせて（前を 0 で埋めて）実装した場合、その 0 埋め区間も比較に含めない（ADR-0012 (B)）
+- この扱いは既存実装と一致する。`harness/metrics.py` はフレーム単位の指標（`multiscale_spectral_distance` / `mfcc_distance` / `transient_envelope_correlation` / `f0_trajectory_distance` / `formant_trajectory_distance`）で `min()` を取り、区間別指標でも `n = min(len(target_segment), len(candidate_segment))` としている。ここで決めることは、この扱いを `loudness_diff_db` にも適用することである
+- **長さを揃えない扱い（現行の `loudness_diff_db`）は採らない。** 同指標は「ラウドネス差の定義と符号」でゲイン差の切り分けに使うと定めており、長さの比で動く値はその用途に合わない。Q-019 観測1では、前を 0 で埋めた candidate の全長 RMS が薄まり `1.626 − 10·log10(52244/41600) = 0.636` の差が出た。この差は音ではなく長さの項である
+- **長い方に合わせる扱い（ゼロ詰め）も採らない。** ADR-0012 (B) が「0 で埋めた区間を比較に含めると、どこまで追い込んでも下がらない残差が入り、`docs/05-glossary.md` の能力ギャップと区別できなくなる」として退けた失敗モードと同じになる
+- 帰結1：**長い方の末尾は評価されない。** target の整列後の長さがレンダ長と異なる場合、評価されない部分が音源ごとに生じる
+- 帰結2：**評価窓の長さはレンダ長に依存する。** レンダ長は `docs/06-open-questions.md` Q-014 の暫定の扱い（プリセットの時間軸から導出。`engine/core/src/render.cpp` の `computeRenderDurationSeconds`）のままであり、本決定はそれを変えない。レンダが target より短ければ窓はレンダ長で決まるため、**プリセットの時間軸を変えると評価窓そのものが変わる**。Q-014 が決まった時点で本項を見直す
+- 区間別指標への適用：区間境界は整列後の時間軸（0秒 = candidate のノートオン）で切り、窓 `n` に収まらない区間は `value=null` と `missing_reason`（例：「整列後の比較長がこの区間に満たない」）にする。境界の定義（`calc_conditions.segment_boundaries_s`）と Q-009 は変えない
+- 標本ではなくフレーム数で算出する指標は、`n` から導かれるフレーム数を上限とする（既存の `min()` と同じ扱い）
+
+### `calc_conditions` への記録
+
+整列を適用した指標ベクトルは、使ったずらし量と長さの扱いを `calc_conditions.time_alignment` に記録する（`docs/04-metrics.schema.json`）。
+
+- `target_note_on_s`：算出に使ったずらし量（秒）。`corpus/manifest.json` の `time_alignment.target_note_on_s` をそのまま記録する（変換・丸めをしない）
+- `target_note_on_source`：`"manifest"` 固定。前提データ（所有者付与）由来であることを示す。エージェントが推定した値であることを表す値は定義しない
+- `compared_length_samples`：整列後に実際に比較した長さ `n`（標本数。両信号で同一）
+- `length_policy`：`"truncate_to_shorter"` 固定。上記「整列で比較する信号の長さ」の扱いを表す
+
+整列を適用していない指標ベクトル（現行の `corpus/baseline/` など）は `time_alignment` を持たない。両者は `calc_conditions.time_alignment` の有無で区別できる。
+
+`schema_version` の扱い：`calc_conditions.time_alignment` の追加は省略可能なフィールドの追加なので **minor**（`2.1.0` → `2.2.0`）。バージョンの値は出力側（`harness/metrics.py` の `SCHEMA_VERSION`）が持つため、**上げるのは整列を実装する #126** である。`docs/04-metrics.schema.json` 側は本Issueで先に新しくなり、`2.1.0` の既存出力と `corpus/baseline/` は追加フィールドが任意であるため新スキーマでも valid のまま検証を通る（仕様PRと実装PRの間でCIを壊さない）
+
+### 区間境界との関係
+
+`calc_conditions.segment_boundaries_s` の「ノートオンを0秒とする」は、整列を適用した指標ベクトルでは **target のずらし量の位置**を指す（target をずらし量で切り出した後の時間軸）。ADR-0012 の (A)(B) の帰結であり、`docs/04-metrics.schema.json` の同フィールドの説明にも同じ形で反映する。Q-009 の既定値（アタック20msが仮であること）と判定基準は本決定で変えない
 
 ## 出力形式
 
@@ -318,6 +374,5 @@ gcc 13.3.0）でエンジンをビルドし、非同梱音源を取得したう�
 - 成功判定の閾値
 - 「N回反復しても下がらない」のN
 - 区間分割の境界（アタック20msは仮）
-- 時間整列（ADR-0012）の、ずらし量の記録形式（置き場所・フィールド名・単位）、整列で比較する信号の長さが変わるときの扱い（`loudness_diff_db` が長さの比で動く。Q-014 とも関係する）、`calc_conditions` への記録形式。実装側の Issue で決める
 
 これらは**観測してから決める**。今の時点でそれらしい数字を埋めないこと（`AGENTS.md` 第6節）。
