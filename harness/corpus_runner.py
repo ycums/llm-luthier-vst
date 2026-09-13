@@ -156,6 +156,13 @@ def _render(
     パスを含めない（`out_dir` の一時パスが指標JSONの欠測理由に埋まり、決定論
     「同一入力に対してビット単位で一致」を壊すため）。代わりにプリセットパス
     （マニフェストから相対）と終了コードを載せる。
+
+    レンダラ（`luthier-render`）の標準エラー出力は常にUTF-8（`engine/CMakeLists.txt`
+    の`/utf-8`でビルド）。`encoding`を指定しない`text=True`はPythonの既定テキスト
+    エンコーディング（`locale.getencoding()`、実行環境のロケール依存）でデコード
+    しようとするため、日本語ロケールのWindows（cp932）ではデコードに失敗し、
+    `result.stderr`が`None`になって失敗理由が失われる（Issue #122）。
+    `encoding="utf-8"`を明示して、ロケールに関わらずレンダラの出力を正しく読む。
     """
     out_wav.parent.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
@@ -168,6 +175,8 @@ def _render(
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=300,
         check=False,
     )

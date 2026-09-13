@@ -21,6 +21,7 @@ Issue #11 + #52 の完了条件を検証する：
 from __future__ import annotations
 
 import json
+import locale
 import sys
 from pathlib import Path
 
@@ -261,6 +262,73 @@ def test_error_entry_is_recorded_with_render_failure_in_missing_reason(
     vector = json.loads((out_dir / "error_entry.json").read_text(encoding="utf-8"))
     assert vector["overall"]["msstft"]["value"] is None
     assert "レンダ失敗" in vector["overall"]["msstft"]["missing_reason"]
+
+
+def _utf8_ja_failure_manifest(tmp_path: Path) -> Path:
+    """レンダラがUTF-8の日本語を標準エラーに書いて非0終了する、1件だけのマニフェスト
+    （Issue #122）。本物のエンジン（`/utf-8`でビルドされたMSVCバイナリ）が日本語ロケール
+    以外のホストでも常にUTF-8で書くのと同じ条件を、`fake_render.py` の
+    `__fail_utf8_ja__` で模す。
+    """
+    repo_root = tmp_path
+    # レンダ失敗の経路（_render）に到達させるには、targetが手元に存在する必要がある
+    # （target欠測の分岐が_renderより先にあるため）。
+    target = repo_root / "corpus" / "audio" / "utf8_ja_fail_target.wav"
+    _write_wav(target, sample_rate=44100)
+    preset_path = repo_root / "corpus" / "presets" / "utf8_ja_fail_preset.json"
+    preset_path.parent.mkdir(parents=True, exist_ok=True)
+    json.dump(
+        {**PROVISIONAL_PRESET, "__fail_utf8_ja__": True},
+        preset_path.open("w", encoding="utf-8"),
+    )
+    manifest = {
+        "schema_version": "1.2.0",
+        "entries": [
+            {
+                "id": "utf8_ja_fail_entry",
+                "format": "wav",
+                "bundled": True,
+                "bundled_path": "corpus/audio/utf8_ja_fail_target.wav",
+                "retrieval": None,
+                "preset_path": "corpus/presets/utf8_ja_fail_preset.json",
+            },
+        ],
+    }
+    manifest_path = repo_root / "corpus" / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    return manifest_path
+
+
+def test_render_failure_detail_keeps_utf8_japanese_text_when_locale_prefers_cp932(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #122: `subprocess.run` がエンコーディング指定なしで `text=True` を使うと、
+    Pythonの既定テキストエンコーディング（`locale.getencoding()`）でエンジンの標準
+    エラー出力（常にUTF-8）をデコードしようとする。日本語ロケールのWindows（cp932）
+    ではこれが失敗し、デコード用スレッドで `UnicodeDecodeError` が発生して
+    `result.stderr` が `None` になる（実測、Issue本文）。その結果 `RenderError` の
+    メッセージ（ひいては指標JSONの欠測理由）が実際のエラー内容ではなく
+    `(stderrなし)` になり、失敗理由が失われる。
+
+    CIのLinux/Windows(cp1252)ランナーではホストの実ロケールがcp932ではないため
+    自然には再現しない（Issue完了条件）。`locale.getencoding` を直接
+    monkeypatchすることで、`subprocess` モジュールが実際に使うエンコーディング
+    解決結果だけを差し替え、ホストの実ロケールに関わらずこの条件を再現する
+    （`subprocess._text_encoding` が `sys.flags.utf8_mode` でなければ
+    `locale.getencoding()` を使うことを実機で確認済み）。
+    """
+    monkeypatch.setattr(locale, "getencoding", lambda: "cp932")
+    manifest = _utf8_ja_failure_manifest(tmp_path)
+    out_dir = tmp_path / "out"
+
+    run_corpus(manifest, out_dir, render_cmd=_render_cmd())
+
+    vector = json.loads((out_dir / "utf8_ja_fail_entry.json").read_text(encoding="utf-8"))
+    reason = vector["overall"]["msstft"]["missing_reason"]
+    assert "レンダ失敗" in reason
+    # 修正前は (result.stderr が None になり) "(stderrなし)" にしかならず、
+    # 実際の日本語エラー内容（「予期しないエラー」）は失われる。
+    assert "予期しないエラー" in reason
 
 
 def test_renderer_unavailable_records_all_entries_as_missing(
