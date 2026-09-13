@@ -11,9 +11,15 @@ name: Metrics
 # および corpus/baseline/ の鮮度検証（下記）が不一致を検出した場合のみ。
 #
 # #88（#86の決定の実装）：corpus/baseline/ が現在のエンジンでの run-corpus 出力に追いついて
-# いるかを検証する（docs/04-metrics.md「更新手順」）。判定はビット完全一致（許容誤差なし）。
+# いるかを検証する（docs/04-metrics.md「更新手順」）。判定は
+# `math.isclose(rel_tol=1e-12, abs_tol=1e-12)` による許容誤差付き比較（〔改訂・#108／
+# docs/adr/0008「8.」〕。指標値はマシン（CPU）をまたいだビット一致を保証しないため）。
 # 非同梱音源の取得失敗（status: missing）は誤検出を避けるため比較対象から除外する
 # （詳細は harness/baseline_freshness.py のモジュールdocstring）。
+#
+# #108：鮮度検証が失敗した run でも原因の切り分けができるよう、run-corpus の前に実行CPUの
+# 型番・命令セット（avx512fの有無）とNumPy/OpenBLASの実行時構成をログに出し、
+# metrics-vectors 成果物は鮮度検証の成否に関わらずアップロードする。
 #
 # #52：レンダラ（engine/cli の luthier-render）を先にビルドし、そのバイナリパスを
 # LUTHIER_RENDER_BIN として run-corpus と成果物の一環で使う。
@@ -74,6 +80,31 @@ jobs:
         # docs/adr/0008）。
         run: uv sync --extra dev
 
+      - name: Log CPU / NumPy runtime info (ADR-0008「8.」(c) 5., Issue #108)
+        # docs/adr/0008「8.」(b)：NumPy/OpenBLASが実行時にCPUに応じて演算カーネルを選ぶことで
+        # transient_env_corr等にULP差が生じる機構は、ローカルの実測でCIの1値をビット単位で
+        # 再現できており実在する。ただし#96の失敗runが実際にどのCPUで動いたかはログに無く
+        # 未確認であり、f0_dist・loudness_diff_dbの差はローカルのどの設定でも再現しておらず
+        # 原因は未特定（同節、断定しない）。鮮度検証が失敗したrunでも層の切り分けができるよう、
+        # run-corpus の前に実行CPUの型番・avx512fの有無・NumPy/OpenBLASの実行時構成を
+        # ログとジョブサマリに残す。新規の外部ライブラリは追加しない（AGENTS.md第6節）ため、
+        # threadpoolctl等ではなく既存依存のnumpy.show_runtime()を使う。
+        run: |
+          {
+            echo "## CPU / NumPy runtime info (ADR-0008「8.」)"
+            echo ""
+            echo '```'
+            grep -m1 "^model name" /proc/cpuinfo || echo "model name: 不明（/proc/cpuinfoに無い）"
+            if grep -qw avx512f /proc/cpuinfo; then
+              echo "avx512f: yes"
+            else
+              echo "avx512f: no"
+            fi
+            uv run python -c "import numpy; numpy.show_runtime()"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+        shell: bash
+
       - name: Fetch corpus audio (非同梱音源の取得)
         # 同梱不可（bundled: false）の音源を corpus/.cache/ に取得する
         # （corpus/fetch_and_verify.py、corpus/README.md「既知のリスク」参照）。
@@ -127,6 +158,35 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
 
+      - name: Compute vectors checksum (決定論検証用)
+        # 音源ごとの指標ベクトルJSON（index.jsonを除く。所要時間を含み実行ごとに
+        # 変わるため）とレンダWAV（renders/*.wav）、それぞれの合成SHA256をジョブ出力に残す。
+        # エンジンの決定論（docs/02-engine-spec.md「同じプリセット・同じseedから常に
+        # ビットレベルで同一のWAV」）の確認は、指標JSONではなくレンダWAVのバイト列で行う
+        # （〔改訂・#108／docs/adr/0008「8.」(c) 4.〕。別マシン間の指標JSONの一致は
+        # 保証対象ではなくなったため。Issue #13完了条件「出力JSONがビット単位で一致する」の
+        # 確認材料は本コミットからWAVのチェックサムに差し替えた）。
+        id: vectors_checksum
+        run: |
+          checksum=$(find metrics_output/current -maxdepth 1 -name '*.json' ! -name 'index.json' \
+            -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+          wav_checksum=$(find metrics_output/current/renders -name '*.wav' \
+            -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+          echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
+          echo "wav_sha256=$wav_checksum" >> "$GITHUB_OUTPUT"
+          echo "vectors sha256 (index.json除く): $checksum"
+          echo "renders/*.wav sha256 (決定論確認用): $wav_checksum"
+        shell: bash
+
+      - name: Upload metrics vectors (成果物)
+        # #108：鮮度検証（次のステップ）が不一致を検出しても、原因の切り分けに使えるよう
+        # renders/*.wav・指標JSONを含む成果物は先にアップロードしておく
+        # （docs/adr/0008「8.」(c) 5.）。
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-vectors
+          path: metrics_output/current
+
       - name: Check corpus/baseline/ freshness (#88 / #86の決定の実装)
         run: |
           uv run python -m harness check-baseline-freshness \
@@ -134,25 +194,6 @@ jobs:
             --current metrics_output/current
         env:
           PYTHONIOENCODING: utf-8
-
-      - name: Compute vectors checksum (決定論検証用)
-        # 音源ごとの指標ベクトルJSON（index.jsonを除く。所要時間を含み実行ごとに
-        # 変わるため）の合成SHA256をジョブ出力に残す。同一コミットに対する複数回の
-        # 実行でこの値が一致することが、Issue #13完了条件「出力JSONがビット単位で
-        # 一致する」の確認材料になる。
-        id: vectors_checksum
-        run: |
-          checksum=$(find metrics_output/current -maxdepth 1 -name '*.json' ! -name 'index.json' \
-            -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
-          echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
-          echo "vectors sha256 (index.json除く): $checksum"
-        shell: bash
-
-      - name: Upload metrics vectors (成果物)
-        uses: actions/upload-artifact@v4
-        with:
-          name: metrics-vectors
-          path: metrics_output/current
 
       - name: Diff against baseline (前回コミットとの差分)
         id: diff_corpus
@@ -183,6 +224,7 @@ jobs:
           RUN_CORPUS_ELAPSED_S: ${{ steps.run_corpus.outputs.elapsed_s }}
           DIFF_CORPUS_ELAPSED_S: ${{ steps.diff_corpus.outputs.elapsed_s }}
           VECTORS_SHA256: ${{ steps.vectors_checksum.outputs.sha256 }}
+          VECTORS_WAV_SHA256: ${{ steps.vectors_checksum.outputs.wav_sha256 }}
         run: |
           uv run python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
@@ -199,7 +241,9 @@ jobs:
                 "（失敗しても run-corpus 側の欠測記録に委ねて続行する）")
           print(f"- run-corpus: {index['summary']} / 所要 {os.environ['RUN_CORPUS_ELAPSED_S']}s")
           print(f"- diff-corpus 所要: {os.environ['DIFF_CORPUS_ELAPSED_S']}s")
-          print(f"- vectors sha256（index.json除く、決定論検証用）: `{os.environ['VECTORS_SHA256']}`")
+          print(f"- vectors sha256（index.json除く）: `{os.environ['VECTORS_SHA256']}`")
+          print(f"- renders/*.wav sha256（エンジン決定論の確認用、docs/adr/0008「8.」(c) 4.）: "
+                f"`{os.environ['VECTORS_WAV_SHA256']}`")
           print()
           print(report)
           PY
