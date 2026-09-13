@@ -81,8 +81,11 @@ jobs:
         run: uv sync --extra dev
 
       - name: Log CPU / NumPy runtime info (ADR-0008「8.」(c) 5., Issue #108)
-        # #96 で判明したULP差はCPU依存のNumPy/OpenBLASカーネル選択が原因だった
-        # （docs/adr/0008「8.」(a)(b)）。鮮度検証が失敗したrunでも層の切り分けができるよう、
+        # docs/adr/0008「8.」(b)：NumPy/OpenBLASが実行時にCPUに応じて演算カーネルを選ぶことで
+        # transient_env_corr等にULP差が生じる機構は、ローカルの実測でCIの1値をビット単位で
+        # 再現できており実在する。ただし#96の失敗runが実際にどのCPUで動いたかはログに無く
+        # 未確認であり、f0_dist・loudness_diff_dbの差はローカルのどの設定でも再現しておらず
+        # 原因は未特定（同節、断定しない）。鮮度検証が失敗したrunでも層の切り分けができるよう、
         # run-corpus の前に実行CPUの型番・avx512fの有無・NumPy/OpenBLASの実行時構成を
         # ログとジョブサマリに残す。新規の外部ライブラリは追加しない（AGENTS.md第6節）ため、
         # threadpoolctl等ではなく既存依存のnumpy.show_runtime()を使う。

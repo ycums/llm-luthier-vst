@@ -11,11 +11,14 @@
 
 Issue #88 実装時はビット完全一致（許容誤差なし）を要求していたが、Issue #96 で
 `main` 上の鮮度検証が同一のエンジンソース・baseline・ランナーイメージ・gccバージョンの2 run
-でpass/failに割れることが実測された（詳細・実測根拠は `docs/adr/0008`「8.」）。原因は
-NumPy / OpenBLAS が実行時にCPUに応じて演算カーネルを選ぶことによるULP差（最大相対2.4e-15）で
-あり、ハーネスのバグではない。エンジンのレンダWAVの決定論（`docs/02-engine-spec.md`）は
-変更していない——CI上の「決定論の確認」は指標JSONではなくレンダWAVのバイト列（
-`renders/*.wav` のハッシュ）で行う（`.github/workflows/metrics.yml`）。
+でpass/failに割れることが実測された（詳細・実測根拠は `docs/adr/0008`「8.」）。NumPy / OpenBLAS
+が実行時にCPUに応じて演算カーネルを選ぶことでULP差（最大相対2.4e-15）が生じる機構は、ローカルの
+実測でCIの1値をビット単位で再現できており実在する（`transient_env_corr`）。ただし#96の失敗run
+が実際にどのCPUで動いたかはログに無く未確認であり、`f0_dist`・`loudness_diff_db`の差は
+ローカルのどの設定でも再現しておらず原因は未特定（同節、断定しない）。いずれにせよエンジンの
+レンダWAVの決定論（`docs/02-engine-spec.md`）は変更していない——CI上の「決定論の確認」は
+指標JSONではなくレンダWAVのバイト列（`renders/*.wav` のハッシュ）で行う
+（`.github/workflows/metrics.yml`）。
 
 この観測を踏まえ、両側とも値を持つ指標については
 `math.isclose(baseline, current, rel_tol=1e-12, abs_tol=1e-12)` で判定する。
