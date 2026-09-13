@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.2.0",
+  "schema_version": "1.3.0",
   "note_en": "Golden corpus for issue #10 / docs/04-metrics.md. Files are managed exactly as obtained (no resampling/normalization). This set must not change without an ADR (see docs/adr/0004-golden-corpus.md).",
   "diversity_methodology": "attack: attack_rise_ms <= 100 -> 'sharp', otherwise 'soft'. pitch: pitch_strength >= 0.5 -> 'yes', otherwise 'no'. harmonic_motion: centroid_motion_ratio > 0.4 -> 'dynamic', otherwise 'static'. These thresholds are a corpus-curation convention for this manifest only; they are NOT the metrics harness's own segment boundaries or thresholds (those remain open, see docs/06-open-questions.md Q-002/Q-004).",
   "entries": [
@@ -44,7 +44,13 @@
         }
       },
       "known_limitations": null,
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 0,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "white_noise",
@@ -87,7 +93,13 @@
         }
       },
       "known_limitations": null,
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 0,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "violin_pizzicato",
@@ -130,7 +142,13 @@
         }
       },
       "known_limitations": null,
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 1.036,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "violin_vibrato",
@@ -173,7 +191,13 @@
         }
       },
       "known_limitations": null,
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 1.281,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "violin_tuning",
@@ -216,7 +240,13 @@
         }
       },
       "known_limitations": "46秒の録音に複数弦の調弦・弾き直しを含む可能性が高い。アタック/倍音変動の測定値はファイル先頭のイベントに対するものであり、単一ノート音源ほどクリーンではない。",
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 0.077,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "crash_cymbal",
@@ -259,7 +289,13 @@
         }
       },
       "known_limitations": "客観測定によるアタック立ち上がりは約76msで、シンバル単体の打撃としては比較的緩やか。録音にクレッシェンド気味の導入が含まれている可能性がある（詳細は docs/adr/0004-golden-corpus.md の測定方法の節を参照）。",
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 1.773,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "snare_drum_rim",
@@ -302,7 +338,13 @@
         }
       },
       "known_limitations": null,
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 0.666,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "rain_light",
@@ -345,7 +387,13 @@
         }
       },
       "known_limitations": null,
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 0,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "tibetan_singing_bowl",
@@ -389,7 +437,13 @@
         }
       },
       "known_limitations": null,
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 0.076,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "kalimba_sample",
@@ -432,7 +486,13 @@
         }
       },
       "known_limitations": "51秒の録音で、複数の音（タイン）を順に鳴らすデモである可能性が高い。測定値はファイル先頭のイベントに対するものである。",
-      "preset_path": "corpus/presets/provisional_v0.json"
+      "preset_path": "corpus/presets/provisional_v0.json",
+      "time_alignment": {
+        "target_note_on_s": 1.067,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     },
     {
       "id": "spoken_hello",
@@ -475,7 +535,13 @@
         }
       },
       "known_limitations": null,
-      "preset_path": "corpus/presets/spoken_hello_manual_v1.json"
+      "preset_path": "corpus/presets/spoken_hello_manual_v1.json",
+      "time_alignment": {
+        "target_note_on_s": 0.202,
+        "assigned_by": "ycums",
+        "method": "owner_listening",
+        "assigned_on": "2026-09-13"
+      }
     }
   ],
     "preset_path_note_en": "preset_path (added in schema_version 1.2.0, P1-07 #52): the path to a preset JSON used to render each entry's candidate. Phase 1 has no automated fitting yet, so most entries still share the same preliminary provisional preset (corpus/presets/provisional_v0.json), which is not fitted to any target (docs/02). It no longer renders silence: since the layer DSP implementations landed (P1-08-P1-11, #53/#54/#55/#56), it enables the transient, harmonic (f0=440Hz, single partial) and formant layers (see the preset file for exact parameters), and the trajectory metrics in corpus/baseline/ for entries rendered with it are real values rather than missing (see docs/04-metrics.md). The exception is spoken_hello, which P1-12 (#57) points at a hand-written preset (corpus/presets/spoken_hello_manual_v1.json) exercising all four v0 layers plus the modulation matrix, to satisfy the phase-1 transition condition ('render a golden source from a manual preset'). harness/corpus_runner.py invokes luthier-render with each entry's preset at the target's sample rate, then computes metrics against the rendered WAV. The sample-rate policy is recorded in the output vector's calc_conditions.render.sr_mismatch_policy (see docs/04-metrics.schema.json). The former self-comparison seam candidate_path is removed."
