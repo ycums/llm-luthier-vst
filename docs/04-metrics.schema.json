@@ -113,7 +113,7 @@
           "description": "帯域別指標の帯域端（Hz、昇順）。分割方式（等間隔/メル/バーク、Q-004）に関わらずこの形式で記録する。"
         },
         "segment_boundaries_s": {
-          "description": "区間境界。ノートオンを0秒とする。attackは0〜attack_end_s、以降transition_end_sまでtransition、sustain_end_sまでsustain、それ以降がrelease。attack_end_sは常に値を持つ（既定値は`docs/04-metrics.md`が明記する仮の値、Q-009参照）。transition_end_s / sustain_end_sは音源ごとの注釈として外部から与えられる値であり、既定値を持たない：与えられていない場合はnullになり、対応するsegmentsの区間（transition/sustain/release）はvalue=null・missing_reason付きの欠測として出力される（Issue #6）。",
+          "description": "区間境界。ノートオンを0秒とする。attackは0〜attack_end_s、以降transition_end_sまでtransition、sustain_end_sまでsustain、それ以降がrelease。attack_end_sは常に値を持つ（既定値は`docs/04-metrics.md`が明記する仮の値、Q-009参照）。transition_end_s / sustain_end_sは音源ごとの注釈として外部から与えられる値であり、既定値を持たない：与えられていない場合はnullになり、対応するsegmentsの区間（transition/sustain/release）はvalue=null・missing_reason付きの欠測として出力される（Issue #6）。整列を適用した指標ベクトル（`calc_conditions.time_alignment` を持つもの）では、この時間軸は target をずらし量で切り出した後を指す（0秒 = ずらし量の位置。ADR-0012、`docs/04-metrics.md`「区間境界との関係」）。",
           "type": "object",
           "properties": {
             "attack_end_s": { "type": "number", "minimum": 0 },
@@ -155,6 +155,37 @@
             }
           },
           "required": ["renderer", "preset_path", "sample_rate_hz", "sr_mismatch_policy"],
+          "additionalProperties": false
+        },
+        "time_alignment": {
+          "description": "時間整列（ADR-0012、`docs/04-metrics.md`「target と candidate の時間整列」）を適用した指標ベクトルにだけ存在する。使ったずらし量と長さの扱いを記録する。整列を適用していない指標ベクトル（現行の `corpus/baseline/` など）はこのフィールドを持たない。両者は本フィールドの有無で区別できる。",
+          "type": "object",
+          "properties": {
+            "target_note_on_s": {
+              "type": "number",
+              "minimum": 0,
+              "description": "算出に使ったずらし量（秒）。`corpus/manifest.json` の `time_alignment.target_note_on_s` を変換・丸めせずにそのまま記録する。target のファイル内で candidate のノートオンに当たる時刻。"
+            },
+            "target_note_on_source": {
+              "const": "manifest",
+              "description": "ずらし量が前提データ（所有者付与）由来であることを示す。エージェントが推定した値であることを表す値は定義しない（ADR-0012 (C)）。"
+            },
+            "compared_length_samples": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "整列後に実際に比較した長さ n（標本数）。両信号で同一（短い方に合わせる。`length_policy` 参照）。"
+            },
+            "length_policy": {
+              "const": "truncate_to_shorter",
+              "description": "整列で比較する信号の長さの扱い。整列後の target と candidate の短い方に合わせ、両方を整列後の起点からその長さだけ取る（`docs/04-metrics.md`「整列で比較する信号の長さ」）。"
+            }
+          },
+          "required": [
+            "target_note_on_s",
+            "target_note_on_source",
+            "compared_length_samples",
+            "length_policy"
+          ],
           "additionalProperties": false
         }
       },

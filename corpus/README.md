@@ -24,6 +24,10 @@ python3 corpus/fetch_and_verify.py            # 不足分をダウンロード�
 python3 corpus/fetch_and_verify.py --no-fetch # ダウンロードはせず、ローカルにあるものだけ検証
 ```
 
+各エントリの `time_alignment`（所有者が付与するずらし量の前提データ）の記録形式は
+`docs/04-metrics.md`「ずらし量の記録形式（前提データ）」が定める。マニフェストの他の
+フィールドを定義する仕様文書はまだない。
+
 SHA256が一致しない、または取得に失敗した場合は非0で終了する。
 
 ## 同梱 / 非同梱の方針
